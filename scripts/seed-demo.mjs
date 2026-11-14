@@ -39,7 +39,7 @@ const NAMES = ['Vlad Petrov', 'Jordan Lee', 'Ricardo Alves', 'Mia Schmidt', 'Jac
 
 const out = [];
 out.push(`DELETE FROM events WHERE site_id = '${siteId}';`, `DELETE FROM sessions WHERE site_id = '${siteId}';`, `DELETE FROM visitors WHERE site_id = '${siteId}';`, `DELETE FROM payments WHERE site_id = '${siteId}';`, `DELETE FROM funnels WHERE site_id = '${siteId}';`, `DELETE FROM sites WHERE id = '${siteId}';`);
-out.push(`INSERT INTO sites (id, name, domain, timezone, currency, api_key, created_at) VALUES ('${siteId}', 'ShipKit', 'shipkit.dev', 'UTC', 'USD', 'ml_demo_key', ${now - 60 * DAY});`);
+out.push(`INSERT INTO sites (id, name, domain, timezone, currency, api_key, created_at) VALUES ('${siteId}', 'Shipcrate', 'shipcrate.dev', 'UTC', 'USD', 'ml_demo_key', ${now - 60 * DAY});`);
 out.push(`INSERT INTO funnels (id, site_id, name, steps, created_at) VALUES ('fun00001', '${siteId}', 'Landing → Checkout', ${q(JSON.stringify([{ type: 'page', value: '/' }, { type: 'page', value: '/pricing' }, { type: 'goal', value: 'checkout_click' }]))}, ${now});`);
 
 let payN = 0;
@@ -70,7 +70,7 @@ for (let d = 34; d >= 0; d--) {
     });
     if (!bounce && rand() < 0.25) events.push([t, 'goal', 'signup_click', pages.at(-1)]);
     if (wantsToBuy) events.push([t + 1000, 'goal', 'checkout_click', '/pricing'], [t + 2000, 'outbound', 'https://checkout.dodopayments.com/buy/pdt_pro', '/pricing']);
-    else if (!bounce && rand() < 0.1) events.push([t, 'outbound', pick(['https://github.com/shipkit', 'https://x.com/shipkit', 'https://discord.gg/shipkit']), pages.at(-1)]);
+    else if (!bounce && rand() < 0.1) events.push([t, 'outbound', pick(['https://github.com/shipcrate', 'https://x.com/shipcrate', 'https://discord.gg/shipcrate']), pages.at(-1)]);
     const goals = events.filter((e) => e[1] === 'goal').length;
     const last = Math.min(now, events.at(-1)[0] + 5000);
 
@@ -78,7 +78,7 @@ for (let d = 34; d >= 0; d--) {
     const name = paid ? pick(NAMES) : null;
     out.push(`INSERT INTO visitors (site_id, id, first_seen, name, email) VALUES ('${siteId}', '${vid}', ${start - (paid && rand() < 0.5 ? Math.floor(rand() * 10 * DAY) : 0)}, ${q(name)}, ${q(name ? name.toLowerCase().replace(' ', '.') + '@example.com' : null)});`);
     out.push(
-      `INSERT INTO sessions (site_id, id, visitor_id, started_at, last_seen_at, duration, pageviews, goals, hostname, entry_page, exit_page, referrer, referrer_domain, source, channel, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ref, country, region, city, browser, os, device) VALUES ('${siteId}', '${sid}', '${vid}', ${start}, ${last}, ${duration}, ${pages.length}, ${goals}, 'shipkit.dev', ${q(entry)}, ${q(pages.at(-1))}, ${q(s.referrer)}, ${q(s.domain)}, ${q(s.source)}, ${q(s.channel)}, ${q(camp ? s.source.toLowerCase() : null)}, ${q(camp ? 'social' : null)}, ${q(camp)}, NULL, NULL, NULL, '${country}', ${q(region)}, ${q(city)}, '${browser}', '${os}', '${device}');`,
+      `INSERT INTO sessions (site_id, id, visitor_id, started_at, last_seen_at, duration, pageviews, goals, hostname, entry_page, exit_page, referrer, referrer_domain, source, channel, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ref, country, region, city, browser, os, device) VALUES ('${siteId}', '${sid}', '${vid}', ${start}, ${last}, ${duration}, ${pages.length}, ${goals}, 'shipcrate.dev', ${q(entry)}, ${q(pages.at(-1))}, ${q(s.referrer)}, ${q(s.domain)}, ${q(s.source)}, ${q(s.channel)}, ${q(camp ? s.source.toLowerCase() : null)}, ${q(camp ? 'social' : null)}, ${q(camp)}, NULL, NULL, NULL, '${country}', ${q(region)}, ${q(city)}, '${browser}', '${os}', '${device}');`,
     );
     for (const [ts, type, n, p] of events) out.push(`INSERT INTO events (site_id, session_id, visitor_id, ts, type, name, path) VALUES ('${siteId}', '${sid}', '${vid}', ${ts}, '${type}', ${q(n)}, ${q(p)});`);
     if (paid) {
@@ -99,7 +99,7 @@ LIVE.forEach(([cc, city, lat, lon, source, domain, channel, page], i) => {
   const vid = uuid(), sid = uuid();
   const start = now - (i + 1) * 70_000;
   out.push(`INSERT INTO visitors (site_id, id, first_seen) VALUES ('${siteId}', '${vid}', ${start});`);
-  out.push(`INSERT INTO sessions (site_id, id, visitor_id, started_at, last_seen_at, duration, pageviews, goals, hostname, entry_page, exit_page, referrer_domain, source, channel, country, city, browser, os, device, lat, lon) VALUES ('${siteId}', '${sid}', '${vid}', ${start}, ${now - 15_000}, 60000, 2, ${i === 0 ? 1 : 0}, 'shipkit.dev', '/', ${q(page)}, ${q(domain)}, ${q(source)}, ${q(channel)}, '${cc}', ${q(city)}, 'Chrome', 'Mac OS', '${i === 3 ? 'Mobile' : 'Desktop'}', ${lat}, ${lon});`);
+  out.push(`INSERT INTO sessions (site_id, id, visitor_id, started_at, last_seen_at, duration, pageviews, goals, hostname, entry_page, exit_page, referrer_domain, source, channel, country, city, browser, os, device, lat, lon) VALUES ('${siteId}', '${sid}', '${vid}', ${start}, ${now - 15_000}, 60000, 2, ${i === 0 ? 1 : 0}, 'shipcrate.dev', '/', ${q(page)}, ${q(domain)}, ${q(source)}, ${q(channel)}, '${cc}', ${q(city)}, 'Chrome', 'Mac OS', '${i === 3 ? 'Mobile' : 'Desktop'}', ${lat}, ${lon});`);
   out.push(`INSERT INTO events (site_id, session_id, visitor_id, ts, type, name, path) VALUES ('${siteId}', '${sid}', '${vid}', ${start}, 'pageview', NULL, '/');`);
   out.push(`INSERT INTO events (site_id, session_id, visitor_id, ts, type, name, path) VALUES ('${siteId}', '${sid}', '${vid}', ${start + 30_000}, 'pageview', NULL, ${q(page)});`);
   if (i === 0) {

@@ -1,20 +1,53 @@
-# Open Analytics
+# Open Analytics: a free, open-source DataFast alternative
 
-Self-hosted web analytics that shows where your visitors come from and **which of those sources made you money**.
-One dashboard for all your websites, on Cloudflare's free plan, with your data in your own account.
+**Free, self-hosted web analytics with revenue attribution.** See where your visitors come from and which source made
+you money: the tweet, the Reddit thread, the Google search or the ChatGPT answer. Open Analytics runs on Cloudflare's
+free plan, keeps your data in your own Cloudflare account, and is open source under the MIT license.
 
-- **Visitors and revenue together:** visitors, revenue, conversion, revenue per visitor, bounce rate and time on site,
-  each compared with the period before, on one chart (hourly, daily, weekly or monthly)
-- **Where people come from:** channel, referrer (X, Google, ChatGPT, Reddit…), campaign, keyword and `?ref=` tags
+It's an open-source alternative to [DataFast](https://datafa.st), and a lightweight, privacy-friendly alternative to
+Google Analytics, built for indie hackers, SaaS founders and makers who want to know what actually brings in sales.
+
+[![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers%20%2B%20D1-f38020.svg)](https://workers.cloudflare.com)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6.svg)](tsconfig.json)
+
+![Open Analytics dashboard: visitors and revenue over 30 days, with channels and countries](docs/dashboard.jpg)
+
+## Features
+
+- **Revenue attribution:** every payment is tied to the visitor who paid and the source, campaign or post that brought
+  them. Works with Stripe, Dodo Payments, or any provider through a simple API
+- **Visitors and revenue together:** visitors, revenue, conversion rate, revenue per visitor, bounce rate and time on
+  site, each compared with the period before, on one chart (hourly, daily, weekly or monthly)
+- **Where people come from:** channel, referrer (X, Google, ChatGPT, Claude, Perplexity, Reddit, Hacker News…),
+  UTM campaign, keyword and `?ref=` tags, plus a link builder for tagging each post
 - **Who they are and what they did:** country, region, city, browser, OS, device, pages, entry pages, outbound links,
   goals and funnels
-- **Who paid:** every customer with the source that brought them (Dodo Payments, Stripe, or any provider through the API)
 - **Visitor profiles:** click anyone to see where they came from, every page and action by day, what they spent,
   how long they took to pay, and a map of their activity
-- **AI crawlers:** which AI assistants (ChatGPT, Claude, Perplexity…), search engines and training crawlers read your
-  pages, and which pages
-- **Live map** (press `M`): everyone on your sites right now, on a 3D globe
-- **Light and dark mode**, a public read-only view you can share per site, and one owner sign-in
+- **AI crawler tracking:** which AI assistants (ChatGPT, Claude, Perplexity…), search engines and training crawlers
+  read your pages, and which pages
+- **Real-time globe** (press `M`): everyone on your sites right now, on a 3D map
+- **One-click import from DataFast:** paste your DataFast API key and your history comes over in the background
+- **Many websites, one dashboard,** light and dark mode, and a public read-only view you can share per site
+- **Lightweight script:** about 3.5 KB gzipped, first-party cookies only, single-page apps handled automatically
+
+![The websites overview in light mode: one sentence summary, a combined chart and a card per site](docs/overview.jpg)
+
+## Open Analytics vs DataFast
+
+DataFast is a polished hosted product. Open Analytics follows the same idea (analytics that shows what makes money)
+for people who'd rather own their data, pay nothing, or change the code.
+
+| | Open Analytics | DataFast |
+| --- | --- | --- |
+| Price | Free on Cloudflare's free plan ($5/month Workers Paid if you outgrow it) | Paid subscription |
+| Source code | Open source, MIT | Closed source |
+| Where your data lives | Your own Cloudflare account (D1 database) | DataFast's servers |
+| Revenue attribution | Stripe, Dodo Payments, any provider through the API | Yes |
+| Real-time globe | Yes | Yes |
+| AI crawler tracking | Yes, with a few lines in your site's server | Yes |
+| Switching | One-click import of your DataFast history | |
 
 ## Try it on your computer (5 minutes)
 
@@ -32,7 +65,7 @@ Open **http://localhost:5173**. Logged out, you see the public view (empty until
 sites, sign in at **http://localhost:5173/admin-login** with the password from `.dev.vars`. There's no sign-in link
 on the page on purpose; the owner types the address.
 
-The demo site is called ShipKit. Run `npm run seed` any time to refresh its demo data.
+The demo site is called Shipcrate. Run `npm run seed` any time to refresh its demo data.
 
 ## Make it yours
 
@@ -280,6 +313,54 @@ No analytics tool is 100% accurate. These are the main gaps and how this project
   email fallback above recovers most of these payments.
 - **Bots** are filtered by user agent and the `navigator.webdriver` flag.
 - Revenue in a different currency than the site's is converted only when Dodo gives a settlement amount in the site's currency.
+
+## FAQ
+
+### What's a free, open-source alternative to DataFast?
+
+Open Analytics. Like DataFast, it shows which channel, campaign or post brings visitors and revenue. Unlike it, it's
+open source (MIT), runs free on your own Cloudflare account, and can import your DataFast history in one step
+(Settings → Import data).
+
+### How do I self-host web analytics for free?
+
+Deploy Open Analytics to Cloudflare Workers with a D1 database: about ten minutes with the steps under
+[Deploy to Cloudflare](#deploy-to-cloudflare-about-10-minutes). There's no server to run or database to maintain, and
+Cloudflare's free plan covers roughly 100,000 tracked events a day.
+
+### Can I see which tweet, post or ad made me money?
+
+Yes. Each payment is linked to the visitor who paid and the source that brought them (the last visit that came from a
+real source). Tag the link in each post with the built-in link builder (UTM tags or `?ref=`) and each post shows up
+separately under Campaign, with its visitors and revenue.
+
+### Which payment providers does it work with?
+
+Stripe (webhook), Dodo Payments (API key or webhook), and anything else through the payments API
+(`POST /api/v1/payments`). Subscription renewals and refunds are handled.
+
+### Does it show traffic from ChatGPT and other AI assistants?
+
+Yes, two ways. Visits from ChatGPT, Claude, Perplexity, Gemini, Copilot, DeepSeek and Grok show up under the AI
+channel. And AI crawlers (GPTBot, ClaudeBot, ChatGPT-User, Perplexity and others) are counted separately, as AI
+answers, indexing or training, once you add the short server snippet from Settings → AI crawlers.
+
+### Can I move my data from DataFast?
+
+Yes. Paste your DataFast API key in Settings → Import data. Daily totals, hourly charts and per-day breakdowns come
+over in the background, and days the dashboard already has are never imported twice.
+
+### Is it privacy-friendly?
+
+Your data stays in your own Cloudflare account. The script sets first-party cookies only, with no third-party trackers
+or ads, and visits are stored without IP addresses. Visitors get anonymous names (like "brown fox") unless your site
+identifies them.
+
+### Is it an alternative to Plausible, Umami or Google Analytics?
+
+It covers the same ground as a lightweight, privacy-friendly analytics tool (pages, sources, countries, devices,
+goals, funnels, real-time view), and adds revenue attribution and AI crawler tracking. It's built for Cloudflare, so
+there's no server or Docker setup.
 
 ## Development
 

@@ -50,9 +50,9 @@ describe('user agents', () => {
 
 describe('domains and paths', () => {
   it('accepts subdomains only', () => {
-    expect(belongsTo('app.shipkit.dev', 'shipkit.dev')).toBe(true);
-    expect(belongsTo('www.shipkit.dev', 'shipkit.dev')).toBe(true);
-    expect(belongsTo('evilshipkit.dev', 'shipkit.dev')).toBe(false);
+    expect(belongsTo('app.shipcrate.dev', 'shipcrate.dev')).toBe(true);
+    expect(belongsTo('www.shipcrate.dev', 'shipcrate.dev')).toBe(true);
+    expect(belongsTo('evilshipcrate.dev', 'shipcrate.dev')).toBe(false);
   });
   it('normalises paths', () => {
     expect(normalizePath('/pricing/')).toBe('/pricing');
