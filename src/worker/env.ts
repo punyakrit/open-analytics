@@ -10,6 +10,8 @@ export interface Env {
   /** Per-IP rate limiters (wrangler.jsonc `ratelimits`). Optional so tests and older configs still run. */
   EVENT_LIMIT?: RateLimit;
   API_LIMIT?: RateLimit;
+  /** Crawler reports from a site's server, counted per site (wrangler.jsonc). */
+  CRAWL_LIMIT?: RateLimit;
 
   // ---- Hosted (SaaS) mode, all optional. Setting the two Google values turns it on.
   GOOGLE_CLIENT_ID?: string;

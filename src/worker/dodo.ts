@@ -8,7 +8,7 @@
  */
 import type { Env, Site } from './env';
 import { forgetSite } from './env';
-import { decryptSecret, encryptSecret, isOldSecretFormat } from './lib/crypto';
+import { decryptSecret } from './lib/crypto';
 import { tzOffset } from './lib/time';
 import { dodoPaymentInput, recordDodoRefund, recordPayment } from './payments';
 
@@ -61,17 +61,7 @@ export async function listBrands(env: Env, key: string, mode: DodoMode): Promise
 }
 
 export async function storedKey(env: Env, site: Site): Promise<string | null> {
-  const stored = site.dodo_api_key;
-  if (!stored) return null;
-  const key = await decryptSecret(env.SESSION_SECRET, stored);
-  if (key && isOldSecretFormat(stored)) {
-    // Saved before the rename: store it again in the current format.
-    await env.DB.prepare('UPDATE sites SET dodo_api_key = ? WHERE id = ? AND dodo_api_key = ?')
-      .bind(await encryptSecret(env.SESSION_SECRET, key), site.id, stored)
-      .run();
-    forgetSite(site.id);
-  }
-  return key;
+  return site.dodo_api_key ? decryptSecret(env.SESSION_SECRET, site.dodo_api_key) : null;
 }
 
 /**

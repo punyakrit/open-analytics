@@ -108,6 +108,27 @@ LIVE.forEach(([cc, city, lat, lon, source, domain, channel, page], i) => {
   }
 });
 
+// Crawler visits for the AI crawlers panel: a few AI-answer fetches a day, steady indexing, bursts of training.
+out.push(`DELETE FROM crawls WHERE site_id = '${siteId}';`);
+const CRAWL_MIX = [
+  ['ChatGPT-User', 'answers', 14], ['Perplexity-User', 'answers', 4], ['Claude-User', 'answers', 2], ['DuckAssistBot', 'answers', 1],
+  ['Googlebot', 'indexing', 20], ['bingbot', 'indexing', 8], ['OAI-SearchBot', 'indexing', 6], ['PerplexityBot', 'indexing', 3], ['Applebot', 'indexing', 2],
+  ['GPTBot', 'training', 30], ['ClaudeBot', 'training', 16], ['CCBot', 'training', 6], ['meta-externalagent', 'training', 5], ['Bytespider', 'training', 4],
+];
+const CRAWL_PAGES = ['/', '/pricing', '/blog/seo-for-saas', '/blog/how-to-get-first-customers', '/docs', '/robots.txt', '/sitemap.xml', '/llms.txt'];
+let crawlN = 0;
+for (let d = 0; d < 30; d++) {
+  for (const [agent, kind, perDay] of CRAWL_MIX) {
+    // Training crawlers come in bursts on some days; the rest are steadier.
+    const n = Math.round(perDay * (kind === 'training' ? (rand() < 0.3 ? 2.5 : 0.4) : 0.5 + rand()));
+    for (let i = 0; i < n; i++) {
+      const ts = now - d * DAY - Math.floor(rand() * DAY);
+      out.push(`INSERT INTO crawls (site_id, ts, agent, kind, path, country) VALUES ('${siteId}', ${ts}, '${agent}', '${kind}', ${q(pick(CRAWL_PAGES))}, 'US');`);
+      crawlN++;
+    }
+  }
+}
+
 mkdirSync('.wrangler', { recursive: true });
 writeFileSync('.wrangler/seed.sql', out.join('\n'));
-console.log(`Wrote .wrangler/seed.sql (${out.length} statements, ${payN} payments)`);
+console.log(`Wrote .wrangler/seed.sql (${out.length} statements, ${payN} payments, ${crawlN} crawler visits)`);

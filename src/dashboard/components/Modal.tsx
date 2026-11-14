@@ -12,6 +12,7 @@ export function Modal({
   width = 'max-w-2xl',
   title,
   side = false,
+  sheet = false,
   bare = false,
 }: {
   open: boolean;
@@ -20,6 +21,8 @@ export function Modal({
   width?: string;
   title?: ReactNode;
   side?: boolean;
+  /** Rise from the bottom as a tall sheet (visitor profiles). */
+  sheet?: boolean;
   /** No header or padding: the content lays itself out. */
   bare?: boolean;
 }) {
@@ -37,7 +40,7 @@ export function Modal({
     window.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     // Focus the first field if there is one, else the dialog itself.
-    const first = side ? null : panel.current?.querySelector<HTMLElement>('[autofocus], input, select, textarea');
+    const first = side || sheet ? null : panel.current?.querySelector<HTMLElement>('[autofocus], input, select, textarea');
     (first ?? panel.current)?.focus();
     return () => {
       window.removeEventListener('keydown', onKey);
@@ -49,7 +52,9 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      className={`fixed inset-0 z-50 flex bg-stone-950/45 ${side ? 'justify-end' : 'items-start justify-center overflow-y-auto p-3 sm:p-6 sm:pt-[9vh]'}`}
+      className={`fixed inset-0 z-50 flex bg-stone-950/45 ${
+        side ? 'justify-end' : sheet ? 'items-end justify-center' : 'items-start justify-center overflow-y-auto p-3 sm:p-6 sm:pt-[9vh]'
+      }`}
       onMouseDown={onClose}
     >
       <div
@@ -61,7 +66,9 @@ export function Modal({
         className={
           side
             ? 'oa-slide-in flex h-full w-full max-w-[920px] flex-col overflow-hidden bg-paper shadow-pop outline-none sm:rounded-l-2xl'
-            : `oa-pop-in pop w-full ${width} outline-none`
+            : sheet
+              ? 'oa-sheet-in flex h-[92vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-t-2xl bg-paper shadow-pop outline-none sm:h-[86vh]'
+              : `oa-pop-in pop w-full ${width} outline-none`
         }
         onMouseDown={(e) => e.stopPropagation()}
       >

@@ -5,6 +5,7 @@ import { CloseIcon, Favicon } from '../components/Icons';
 import { Modal } from '../components/Modal';
 import { SecurityPanel } from '../components/SecurityPanel';
 import { CurrencySelect, TimezoneSelect } from '../components/SiteFields';
+import { CRAWLER_PATTERN } from '../../shared/bots';
 import { buildAiPrompt } from '../lib/aiPrompt';
 import { api, type Site } from '../lib/api';
 import { fmtAgo, fmtMoney } from '../lib/format';
@@ -51,11 +52,12 @@ function Step({ n, title, children }: { n: number; title: ReactNode; children?: 
   );
 }
 
-type Tab = 'general' | 'install' | 'goals' | 'payments' | 'links' | 'sharing' | 'security' | 'delete';
+type Tab = 'general' | 'install' | 'goals' | 'crawlers' | 'payments' | 'links' | 'sharing' | 'security' | 'delete';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'install', label: 'Install' },
   { id: 'goals', label: 'Goals' },
+  { id: 'crawlers', label: 'AI crawlers' },
   { id: 'payments', label: 'Payments' },
   { id: 'links', label: 'Campaign links' },
   { id: 'sharing', label: 'Sharing' },
@@ -218,6 +220,8 @@ export function Settings({ siteId }: { siteId: string }) {
 window.openAnalytics('goal', 'signup', { plan: 'pro' });
 window.openAnalytics('identify', { email: user.email, name: user.name });`}</Code>
               </Section>
+            ) : tab === 'crawlers' ? (
+              <CrawlerSetup site={site} origin={origin} />
             ) : tab === 'payments' ? (
               <Revenue
                 site={site}
@@ -288,6 +292,116 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) 
     >
       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
     </button>
+  );
+}
+
+const STACKS = ['Next.js', 'Express', 'Cloudflare', 'Other'] as const;
+
+/**
+ * Settings → AI crawlers: crawlers fetch pages without running JavaScript, so the site's own server reports
+ * them. The snippets check the user agent against the known list first, so ordinary visitors are never sent.
+ */
+function CrawlerSetup({ site, origin }: { site: Site; origin: string }) {
+  const [stack, setStack] = useState<(typeof STACKS)[number]>('Next.js');
+  const re = `/${CRAWLER_PATTERN}/i`;
+  const post = (ua: string, path: string, country: string, key: string) =>
+    `fetch('${origin}/api/v1/crawls', {
+      method: 'POST',
+      headers: { authorization: \`Bearer \${${key}}\`, 'content-type': 'application/json' },
+      body: JSON.stringify({ user_agent: ${ua}, path: ${path}${country ? `, country: ${country}` : ''} }),
+    }).catch(() => {})`;
+  const snippets: Record<(typeof STACKS)[number], { label: string; code: string; note: string }> = {
+    'Next.js': {
+      label: 'middleware.ts (proxy.ts on Next.js 16)',
+      note: "Put it next to your app folder. On Next.js 16 the file is proxy.ts and the function is named proxy. Already have one? Add the if block to it.",
+      code: `import { NextResponse, type NextFetchEvent, type NextRequest } from 'next/server';
+
+// Search engines and AI crawlers that identify themselves.
+const CRAWLERS = ${re};
+
+export function middleware(req: NextRequest, event: NextFetchEvent) {
+  const ua = req.headers.get('user-agent') ?? '';
+  if (CRAWLERS.test(ua)) {
+    event.waitUntil(
+      ${post('ua', 'req.nextUrl.pathname', "req.headers.get('x-vercel-ip-country') ?? req.headers.get('cf-ipcountry')", 'process.env.OPEN_ANALYTICS_KEY')},
+    );
+  }
+  return NextResponse.next();
+}
+
+// Pages, robots.txt, sitemap.xml and llms.txt; not Next.js internals, images, styles or scripts.
+export const config = {
+  matcher: ['/((?!_next/|.*\\\\.(?:png|jpe?g|gif|svg|webp|avif|ico|css|js|map|woff2?)$).*)'],
+};`,
+    },
+    Express: {
+      label: 'server.js',
+      note: 'Add it before your routes.',
+      code: `// Search engines and AI crawlers that identify themselves.
+const CRAWLERS = ${re};
+
+app.use((req, res, next) => {
+  const ua = req.get('user-agent') || '';
+  if (CRAWLERS.test(ua)) {
+    ${post('ua', 'req.path', '', 'process.env.OPEN_ANALYTICS_KEY')};
+  }
+  next();
+});`,
+    },
+    Cloudflare: {
+      label: 'functions/_middleware.js (Pages) or your Worker',
+      note: 'Add OPEN_ANALYTICS_KEY as a secret: npx wrangler secret put OPEN_ANALYTICS_KEY. In a Worker, put the if block at the top of fetch() and use ctx.waitUntil.',
+      code: `// Search engines and AI crawlers that identify themselves.
+const CRAWLERS = ${re};
+
+export async function onRequest(context) {
+  const { request, env } = context;
+  const ua = request.headers.get('user-agent') || '';
+  if (CRAWLERS.test(ua)) {
+    context.waitUntil(
+      ${post('ua', 'new URL(request.url).pathname', 'request.cf?.country', 'env.OPEN_ANALYTICS_KEY')},
+    );
+  }
+  return context.next();
+}`,
+    },
+    Other: {
+      label: 'Any server: one POST per crawler request',
+      note: 'Send the request’s user agent and path. Requests that aren’t from a known crawler are ignored, so it’s safe to send more than needed.',
+      code: `curl -X POST ${origin}/api/v1/crawls \\
+  -H "Authorization: Bearer $OPEN_ANALYTICS_KEY" -H "Content-Type: application/json" \\
+  -d '{"user_agent":"Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)","path":"/pricing"}'`,
+    },
+  };
+  const s = snippets[stack];
+  return (
+    <Section
+      title="AI crawlers"
+      desc="ChatGPT, Claude, Perplexity, Google and other crawlers read your pages without running JavaScript, so the tracking script can't see them. A few lines in your website's server report each crawler visit. Ordinary visitors are never sent."
+    >
+      <Steps>
+        <Step n={1} title={<>Add this key to your website's server environment as <code className="text-ink">OPEN_ANALYTICS_KEY</code>:</>}>
+          <CopyField value={site.api_key} />
+          <p className="hint">Keep it on the server, never in browser code. It can also record payments for {site.name}.</p>
+        </Step>
+        <Step n={2} title="Add the snippet for your stack:">
+          <div className="tabs">
+            {STACKS.map((x) => (
+              <button key={x} className={`tab ${stack === x ? 'tab-active' : ''}`} onClick={() => setStack(x)}>
+                {x}
+              </button>
+            ))}
+          </div>
+          <Code label={s.label}>{s.code}</Code>
+          <p className="text-[13px] text-stone-500">{s.note}</p>
+        </Step>
+        <Step n={3} title="Deploy your site. Crawler visits appear under AI crawlers on the dashboard, usually within a day as crawlers come by." />
+      </Steps>
+      <p className="mt-6 text-[13px] leading-relaxed text-stone-500">
+        Google and Bing sometimes run JavaScript, so a few of their visits are counted from the script alone. Crawlers that pretend to be a browser
+        can't be told apart from people.
+      </p>
+    </Section>
   );
 }
 

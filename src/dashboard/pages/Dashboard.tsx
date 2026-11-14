@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { navigate } from '../App';
+import { CrawlersPanel } from '../components/CrawlersPanel';
 import { GoalsPanel } from '../components/GoalsPanel';
 import { OverviewCard } from '../components/OverviewCard';
 import { Panel, renderLabel } from '../components/Panel';
@@ -188,6 +189,10 @@ export function Dashboard({ siteId, readOnly = false }: { siteId: string; readOn
 
         <div className="mt-3">
           <GoalsPanel totalVisitors={overview?.current.visitors ?? 0} />
+        </div>
+
+        <div className="mt-3">
+          <CrawlersPanel />
         </div>
 
         <p className="mt-8 text-center text-xs leading-relaxed text-stone-400">

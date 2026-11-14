@@ -75,27 +75,22 @@ export async function verifyStripeWebhook(secret: string, header: string | null,
  * Encrypt a third-party credential (a Dodo API key) for storage in D1. AES-GCM with a key derived from
  * SESSION_SECRET, so a copy of the database alone doesn't reveal it. Rotating SESSION_SECRET makes stored
  * credentials unreadable: they then just need entering again.
- *
- * v2 is the current format. v1 (the project's former name in the key label) is still read so keys saved before
- * the rename keep working; storedKey() in dodo.ts rewrites each one as v2 the first time it reads it.
+ * Stored values look like "v2:<iv>:<ciphertext>".
  */
-const KEY_LABEL = { v1: 'minilytics', v2: 'open-analytics' } as const;
-type SecretVersion = keyof typeof KEY_LABEL;
-async function secretKey(sessionSecret: string, version: SecretVersion): Promise<CryptoKey> {
-  const raw = await crypto.subtle.digest('SHA-256', enc.encode(`${KEY_LABEL[version]}:stored-credential:${sessionSecret}`));
+async function secretKey(sessionSecret: string): Promise<CryptoKey> {
+  const raw = await crypto.subtle.digest('SHA-256', enc.encode(`open-analytics:stored-credential:${sessionSecret}`));
   return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
-export const isOldSecretFormat = (stored: string) => stored.startsWith('v1:');
 export async function encryptSecret(sessionSecret: string, plain: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const box = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await secretKey(sessionSecret, 'v2'), enc.encode(plain));
+  const box = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await secretKey(sessionSecret), enc.encode(plain));
   return `v2:${bytesToB64(iv.buffer)}:${bytesToB64(box)}`;
 }
 export async function decryptSecret(sessionSecret: string, stored: string): Promise<string | null> {
   const [v, iv, box] = stored.split(':');
-  if (!(v in KEY_LABEL) || !iv || !box) return null;
+  if (v !== 'v2' || !iv || !box) return null;
   try {
-    const key = await secretKey(sessionSecret, v as SecretVersion);
+    const key = await secretKey(sessionSecret);
     const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBytes(iv) }, key, b64ToBytes(box));
     return new TextDecoder().decode(plain);
   } catch {

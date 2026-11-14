@@ -8,8 +8,11 @@ One dashboard for all your websites, on Cloudflare's free plan, with your data i
 - **Where people come from:** channel, referrer (X, Google, ChatGPT, Reddit…), campaign, keyword and `?ref=` tags
 - **Who they are and what they did:** country, region, city, browser, OS, device, pages, entry pages, outbound links,
   goals and funnels
-- **Who paid:** every customer with the source that brought them and a full timeline from first visit to payment
-  (Dodo Payments, Stripe, or any provider through the API)
+- **Who paid:** every customer with the source that brought them (Dodo Payments, Stripe, or any provider through the API)
+- **Visitor profiles:** click anyone to see where they came from, every page and action by day, what they spent,
+  how long they took to pay, and a map of their activity
+- **AI crawlers:** which AI assistants (ChatGPT, Claude, Perplexity…), search engines and training crawlers read your
+  pages, and which pages
 - **Live map** (press `M`): everyone on your sites right now, on a 3D globe
 - **Light and dark mode**, a public read-only view you can share per site, and one owner sign-in
 
@@ -149,6 +152,32 @@ https://yoursite.com/?ref=launch-tweet            (short version)
 
 For SEO, Google never shares the search keyword, but **Entry page** with the **Google** referrer tells you which
 article people found you through.
+
+## AI crawlers
+
+AI assistants, search engines and training crawlers fetch your pages without running JavaScript, so the tracking
+script can't see them. Instead, your website's server reports them: a few lines that check each request's user agent
+against the list of known crawlers and, for a match, send one small request to your dashboard. Ordinary visitors are
+never sent.
+
+**Settings → AI crawlers** has the snippet for Next.js (middleware/proxy), Express, Cloudflare (Pages or Workers) and
+any other server, with your site's key filled in. Store the key as `OPEN_ANALYTICS_KEY` on your server.
+
+```bash
+curl -X POST https://YOUR-HOST/api/v1/crawls -H "Authorization: Bearer $OPEN_ANALYTICS_KEY" -H "Content-Type: application/json" \
+  -d '{"user_agent":"Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)","path":"/pricing"}'
+```
+
+The dashboard groups them three ways:
+
+| Group | What it means | Examples |
+| --- | --- | --- |
+| AI answers | Someone asked an AI assistant and it opened your page | ChatGPT-User, Claude-User, Perplexity-User |
+| Indexing | Search engines, classic and AI, adding pages to their index | Googlebot, Bingbot, OAI-SearchBot, PerplexityBot |
+| Training | Collecting pages to train AI models | GPTBot, ClaudeBot, CCBot, Bytespider |
+
+The full list is in `src/shared/bots.ts`; add a crawler there and it's recognised everywhere. Google and Bing sometimes
+run JavaScript, so a few of their visits are counted from the script alone. Crawler visits never count as visitors.
 
 ## Revenue attribution
 

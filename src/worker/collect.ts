@@ -3,6 +3,8 @@ import { classify } from '../shared/sources';
 import { siteOwnerActive } from './auth';
 import { getSite, type AppEnv, type Site } from './env';
 import { isOwnerVisit } from './owner';
+import { crawlerFor } from '../shared/bots';
+import { recordCrawl } from './crawls';
 import { isBot, parseUA } from './lib/ua';
 import { creditedSessionSql, dodoProductOfLink, learnDodoProducts } from './payments';
 
@@ -59,7 +61,21 @@ export async function handleEvent(c: Context<AppEnv>) {
   if (!body || !isId(body.w) || !TYPES.has(body.t) || !isId(body.vid) || !isId(body.sid)) return c.body(null, 400);
 
   const ua = c.req.header('user-agent') ?? '';
-  if (isBot(ua)) return c.body(null, 202);
+  const crawler = crawlerFor(ua);
+  if (crawler || isBot(ua)) {
+    // Crawlers that run JavaScript (Google, Bing and a few others) reach the script too. Their page loads are
+    // counted as crawls, never as visitors.
+    if (crawler && body.t === 'pageview') {
+      const site = await getSite(c.env.DB, body.w);
+      let path: string | null = null;
+      try {
+        const u = new URL(body.u);
+        if (site && belongsTo(u.hostname, site.domain)) path = u.pathname.slice(0, 500);
+      } catch {}
+      if (site && path) c.executionCtx.waitUntil(Promise.resolve(recordCrawl(c.env.DB, site, ua, path, c.req.header('cf-ipcountry') ?? null)).catch(() => {}));
+    }
+    return c.body(null, 202);
+  }
 
   const site = await getSite(c.env.DB, body.w);
   if (!site) return c.body(null, 404);

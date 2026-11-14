@@ -10,6 +10,7 @@ import { defaultSyncFrom, DodoError, listBrands, modeOfKey, storedKey, syncAllDo
 import { handleDodoWebhook, handleGoalApi, handlePaymentApi, handleStripeWebhook, learnDodoProducts, rematchPayments } from './payments';
 import { rememberOwnerDevice } from './owner';
 import { CSP } from './security';
+import { CRAWL_RETENTION_MS, crawlStats, handleCrawlApi } from './crawls';
 import { breakdown, customers, funnel, makeCtx, ONLINE_EVENTS, ONLINE_MS, overview, realtime, sparklines, visitorProfile, visitors, type FunnelStep } from './stats';
 
 const app = new Hono<AppEnv>();
@@ -70,9 +71,13 @@ app.post('/api/event', async (c) => ((await overLimit(c.env.EVENT_LIMIT, c, 'eve
 // Webhooks are signed (HMAC) and time-stamped; anything else is rejected inside the handlers.
 app.post('/api/webhooks/dodo/:siteId', handleDodoWebhook);
 app.post('/api/webhooks/stripe/:siteId', handleStripeWebhook);
-app.use('/api/v1/*', async (c, next) => ((await overLimit(c.env.API_LIMIT, c, 'v1')) ? c.json({ error: 'Too many requests' }, 429) : next()));
+// Crawler reports are limited per site inside their handler instead: they all come from the site's one server, in bursts.
+app.use('/api/v1/*', async (c, next) =>
+  c.req.path !== '/api/v1/crawls' && (await overLimit(c.env.API_LIMIT, c, 'v1')) ? c.json({ error: 'Too many requests' }, 429) : next(),
+);
 app.post('/api/v1/payments', handlePaymentApi);
 app.post('/api/v1/goals', handleGoalApi);
+app.post('/api/v1/crawls', handleCrawlApi);
 
 // ---------- login
 
@@ -481,7 +486,7 @@ app.delete('/api/sites/:id', async (c) => {
   const id = c.get('site').id;
   await c.env.DB.batch(
     // Everything stored for the site, so deleting it really removes its visitors' data.
-    ['events', 'sessions', 'visitors', 'payments', 'funnels', 'payment_claims', 'pending_payments', 'dodo_products'].map((t) =>
+    ['events', 'sessions', 'visitors', 'payments', 'funnels', 'payment_claims', 'pending_payments', 'dodo_products', 'crawls', 'imported_daily', 'imported_breakdown', 'imported_hourly'].map((t) =>
       c.env.DB.prepare(`DELETE FROM ${t} WHERE site_id = ?`).bind(id),
     ).concat(c.env.DB.prepare('DELETE FROM sites WHERE id = ?').bind(id)),
   );
@@ -493,6 +498,7 @@ app.delete('/api/sites/:id', async (c) => {
 
 // Aggregate stats only. Shared by the owner's dashboard and the public read-only one.
 const overviewHandler = async (c: Context<AppEnv>) => c.json(await overview(makeCtx(c)));
+const crawlsHandler = async (c: Context<AppEnv>) => c.json(await crawlStats(makeCtx(c), c.req.query('kind')));
 const breakdownHandler = async (c: Context<AppEnv>) => {
   try {
     return c.json(await breakdown(makeCtx(c), c.req.query('dim') ?? 'source', Number(c.req.query('limit')) || 100));
@@ -513,6 +519,7 @@ const funnelStatsHandler = async (c: Context<AppEnv>) => {
 };
 
 app.get('/api/sites/:id/overview', overviewHandler);
+app.get('/api/sites/:id/crawls', crawlsHandler);
 app.get('/api/sites/:id/breakdown', breakdownHandler);
 
 // Dodo payments that couldn't be placed on a site yet, grouped by product.
@@ -616,6 +623,7 @@ app.use('/api/public/sites/:id', publicCache, loadPublicSite);
 app.use('/api/public/sites/:id/*', publicCache, loadPublicSite);
 app.get('/api/public/sites/:id', (c) => c.json(publicFields(c.get('site'))));
 app.get('/api/public/sites/:id/overview', overviewHandler);
+app.get('/api/public/sites/:id/crawls', crawlsHandler);
 app.get('/api/public/sites/:id/breakdown', breakdownHandler);
 app.get('/api/public/sites/:id/funnels', funnelsHandler);
 app.get('/api/public/sites/:id/funnels/:fid/stats', funnelStatsHandler);
@@ -649,5 +657,6 @@ export default {
   // Every 10 minutes (wrangler.jsonc): pull new Dodo payments for sites connected by API key.
   async scheduled(_controller: ScheduledController, env: AppEnv['Bindings'], ctx: ExecutionContext) {
     ctx.waitUntil(syncAllDodo(env));
+    ctx.waitUntil(env.DB.prepare('DELETE FROM crawls WHERE ts < ?').bind(Date.now() - CRAWL_RETENTION_MS).run());
   },
 };

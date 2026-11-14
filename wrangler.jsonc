@@ -13,7 +13,9 @@
   // API_LIMIT guards sign-in, the server API and uncached public reads.
   "ratelimits": [
     { "name": "EVENT_LIMIT", "namespace_id": "1001", "simple": { "limit": 120, "period": 60 } },
-    { "name": "API_LIMIT", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } }
+    { "name": "API_LIMIT", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } },
+    // Crawler reports from a site's server (POST /api/v1/crawls), counted per site.
+    { "name": "CRAWL_LIMIT", "namespace_id": "1003", "simple": { "limit": 600, "period": 60 } }
   ],
   "assets": {
     "directory": "./dist",

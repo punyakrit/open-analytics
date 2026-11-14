@@ -69,7 +69,7 @@ export function SecurityPanel() {
                 {data.attempts.map((a, i) => (
                   <tr key={i} className="border-b border-stone-100 last:border-0">
                     <td className="whitespace-nowrap px-4 py-2 text-stone-600" title={new Date(a.ts).toLocaleString()}>
-                      {fmtAgo(a.ts)}
+                      {fmtAgo(Date.now() - a.ts)} ago
                     </td>
                     <td className="px-4 py-2">
                       <span className={`inline-flex items-center gap-1.5 ${a.ok ? 'text-emerald-600' : 'text-red-600'}`}>
