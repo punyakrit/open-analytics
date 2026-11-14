@@ -12,6 +12,8 @@ export interface Env {
   API_LIMIT?: RateLimit;
   /** Crawler reports from a site's server, counted per site (wrangler.jsonc). */
   CRAWL_LIMIT?: RateLimit;
+  /** Local testing only: a stand-in for DataFast's API (https://datafa.st/api/v1). */
+  DATAFAST_API_BASE?: string;
 
   // ---- Hosted (SaaS) mode, all optional. Setting the two Google values turns it on.
   GOOGLE_CLIENT_ID?: string;

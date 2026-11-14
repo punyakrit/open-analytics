@@ -11,6 +11,7 @@ import { handleDodoWebhook, handleGoalApi, handlePaymentApi, handleStripeWebhook
 import { rememberOwnerDevice } from './owner';
 import { CSP } from './security';
 import { CRAWL_RETENTION_MS, crawlStats, handleCrawlApi } from './crawls';
+import { cancelImport, DataFastError, importStatus, RUN_BUDGET, runImportStep, runPendingImports, startImport } from './datafast';
 import { breakdown, customers, funnel, makeCtx, ONLINE_EVENTS, ONLINE_MS, overview, realtime, sparklines, visitorProfile, visitors, type FunnelStep } from './stats';
 
 const app = new Hono<AppEnv>();
@@ -476,6 +477,39 @@ app.delete('/api/sites/:id/dodo', async (c) => {
   return c.json({ ok: true });
 });
 
+// ---------- importing history from DataFast (datafast.ts)
+
+app.get('/api/sites/:id/import', async (c) => c.json({ import: await importStatus(c.env, c.get('site').id) }));
+
+/** Checks the key, saves the job and takes the first step; the rest continues in the background. */
+app.post('/api/sites/:id/import', async (c) => {
+  const site = c.get('site');
+  const current = await importStatus(c.env, site.id);
+  if (current?.status === 'running') return c.json({ error: 'An import is already running for this site.' }, 409);
+  const b = await c.req.json<{ apiKey?: string; sourceSite?: string; revenueUnit?: string }>().catch(() => ({}) as Record<string, string>);
+  if (typeof b.apiKey !== 'string' || !b.apiKey.trim()) return c.json({ error: 'Paste your DataFast API key.' }, 400);
+  try {
+    await startImport(c.env, site, { apiKey: b.apiKey, sourceSite: b.sourceSite, revenueUnit: b.revenueUnit });
+  } catch (e) {
+    if (e instanceof DataFastError) return c.json({ error: e.message }, e.status === 401 ? 401 : 400);
+    throw e;
+  }
+  c.executionCtx.waitUntil(runImportStep(c.env, site.id, RUN_BUDGET.page).catch(() => {}));
+  return c.json({ import: await importStatus(c.env, site.id) });
+});
+
+/** One step, for the Settings page to call back to back while it's open (the cron job keeps going without it). */
+app.post('/api/sites/:id/import/step', async (c) => {
+  await runImportStep(c.env, c.get('site').id, RUN_BUDGET.page);
+  return c.json({ import: await importStatus(c.env, c.get('site').id) });
+});
+
+/** Stops a running import, or clears a finished one. Days already imported stay. */
+app.delete('/api/sites/:id/import', async (c) => {
+  await cancelImport(c.env, c.get('site').id);
+  return c.json({ ok: true });
+});
+
 app.post('/api/sites/:id/rotate-key', async (c) => {
   const key = 'ml_' + randomId(16);
   await c.env.DB.prepare('UPDATE sites SET api_key = ? WHERE id = ?').bind(key, c.get('site').id).run();
@@ -486,7 +520,7 @@ app.delete('/api/sites/:id', async (c) => {
   const id = c.get('site').id;
   await c.env.DB.batch(
     // Everything stored for the site, so deleting it really removes its visitors' data.
-    ['events', 'sessions', 'visitors', 'payments', 'funnels', 'payment_claims', 'pending_payments', 'dodo_products', 'crawls', 'imported_daily', 'imported_breakdown', 'imported_hourly'].map((t) =>
+    ['events', 'sessions', 'visitors', 'payments', 'funnels', 'payment_claims', 'pending_payments', 'dodo_products', 'crawls', 'imported_daily', 'imported_breakdown', 'imported_hourly', 'imports'].map((t) =>
       c.env.DB.prepare(`DELETE FROM ${t} WHERE site_id = ?`).bind(id),
     ).concat(c.env.DB.prepare('DELETE FROM sites WHERE id = ?').bind(id)),
   );
@@ -655,8 +689,13 @@ app.all('*', async (c) => {
 export default {
   fetch: app.fetch,
   // Every 10 minutes (wrangler.jsonc): pull new Dodo payments for sites connected by API key.
-  async scheduled(_controller: ScheduledController, env: AppEnv['Bindings'], ctx: ExecutionContext) {
-    ctx.waitUntil(syncAllDodo(env));
-    ctx.waitUntil(env.DB.prepare('DELETE FROM crawls WHERE ts < ?').bind(Date.now() - CRAWL_RETENTION_MS).run());
+  // Every minute (wrangler.jsonc): a step of any running history import; every tenth minute, also pull new Dodo
+  // payments and drop old crawler rows.
+  async scheduled(controller: ScheduledController, env: AppEnv['Bindings'], ctx: ExecutionContext) {
+    ctx.waitUntil(runPendingImports(env).catch(() => {}));
+    if (new Date(controller.scheduledTime).getUTCMinutes() % 10 === 0) {
+      ctx.waitUntil(syncAllDodo(env));
+      ctx.waitUntil(env.DB.prepare('DELETE FROM crawls WHERE ts < ?').bind(Date.now() - CRAWL_RETENTION_MS).run());
+    }
   },
 };

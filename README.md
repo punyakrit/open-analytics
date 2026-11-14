@@ -179,6 +179,25 @@ The dashboard groups them three ways:
 The full list is in `src/shared/bots.ts`; add a crawler there and it's recognised everywhere. Google and Bing sometimes
 run JavaScript, so a few of their visits are counted from the script alone. Crawler visits never count as visitors.
 
+## Import from DataFast
+
+Moving from DataFast? Open the site's **Settings → Import data**, paste the website's DataFast API key (`df_…`, in
+DataFast under the website's Settings → API) and click **Start import**. The key is checked straight away; then the
+history comes over in the background: daily visitors and revenue, hourly charts, and per-day sources, campaigns,
+pages, countries, regions, cities, devices, browsers, operating systems and goals.
+
+- **Nothing is counted twice.** It stops the day before this dashboard's own data starts, and days already imported are
+  skipped, so running it again only fills gaps.
+- **How long it takes.** DataFast allows 60 requests a minute and each day of history takes about ten, so roughly
+  five days a minute with the Settings page open. With it closed, the import keeps going on its own (about three days
+  a minute, one step per minute). A year of history takes about an hour and a quarter with the page open, about two
+  hours without.
+- **The key** is stored encrypted while the import runs and deleted when it finishes or is stopped.
+- If revenue comes out 100 times off, import again with **More options → Revenue in DataFast's API → In cents**.
+
+For a one-off import from your computer instead, `scripts/import-datafast.mjs` does the same from the command line
+(see the comment at its top).
+
 ## Revenue attribution
 
 Open a site's **Settings → Payments** and pick your provider. For Dodo, the simplest way is an API key: paste a
@@ -276,10 +295,10 @@ The tracker loads on your sites; while developing it, `data-allow-localhost` on 
 ## How it's built
 
 - `public/js/script.js`: the tracker, 9 KB (about 3.5 KB gzipped). Cookies, pageviews, engaged time, goals, outbound links and payment-link tagging
-- `src/worker`: a [Hono](https://hono.dev) app on Cloudflare Workers: event collection, sign-in, payments (webhooks, Dodo API sync every 10 minutes, generic API) and stats on D1 (SQLite)
+- `src/worker`: a [Hono](https://hono.dev) app on Cloudflare Workers: event collection, sign-in, payments (webhooks, Dodo API sync every 10 minutes, generic API), DataFast imports and stats on D1 (SQLite)
 - `src/dashboard`: the React dashboard (Vite, Tailwind, Recharts, MapLibre), served as static files by the same Worker
 - `migrations/`: the database schema, applied by `npm run deploy` and `npm run setup:local`
-- `scripts/`: deploy, demo data, favicons, and an importer for history from DataFast (`scripts/import-datafast.mjs`)
+- `scripts/`: deploy, demo data, favicons, and a command-line version of the DataFast import (`scripts/import-datafast.mjs`)
 
 ## Contributing
 

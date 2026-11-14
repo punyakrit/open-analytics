@@ -167,6 +167,14 @@ function Install({ site, onClose }: { site: Site; onClose: () => void }) {
         )}
       </div>
 
+      <p className="mt-4 text-sm text-stone-500">
+        Moving from DataFast?{' '}
+        <button className="font-medium text-ink underline decoration-stone-300 underline-offset-2 hover:decoration-ink" onClick={() => go(`/site/${site.id}/settings#import`)}>
+          Import your history
+        </button>{' '}
+        with your DataFast API key. It runs in the background.
+      </p>
+
       <div className="mt-7 flex flex-wrap items-center justify-between gap-2">
         <button className="btn-ghost -ml-2" onClick={() => go(`/site/${site.id}/settings`)}>
           Payments and goals

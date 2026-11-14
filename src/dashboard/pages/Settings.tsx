@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { navigate } from '../App';
 import { CodeBlock, CopyButton, CopyField } from '../components/CodeBlock';
 import { CloseIcon, Favicon } from '../components/Icons';
+import { ImportPanel } from '../components/ImportPanel';
 import { Modal } from '../components/Modal';
 import { SecurityPanel } from '../components/SecurityPanel';
 import { CurrencySelect, TimezoneSelect } from '../components/SiteFields';
@@ -52,7 +53,7 @@ function Step({ n, title, children }: { n: number; title: ReactNode; children?: 
   );
 }
 
-type Tab = 'general' | 'install' | 'goals' | 'crawlers' | 'payments' | 'links' | 'sharing' | 'security' | 'delete';
+type Tab = 'general' | 'install' | 'goals' | 'crawlers' | 'payments' | 'links' | 'sharing' | 'import' | 'security' | 'delete';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'install', label: 'Install' },
@@ -61,6 +62,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'payments', label: 'Payments' },
   { id: 'links', label: 'Campaign links' },
   { id: 'sharing', label: 'Sharing' },
+  { id: 'import', label: 'Import data' },
   { id: 'security', label: 'Sign-in security' },
   { id: 'delete', label: 'Delete website' },
 ];
@@ -257,6 +259,8 @@ window.openAnalytics('identify', { email: user.email, name: user.name });`}</Cod
                   </div>
                 )}
               </Section>
+            ) : tab === 'import' ? (
+              <ImportPanel site={site} />
             ) : tab === 'security' ? (
               <SecurityPanel />
             ) : (

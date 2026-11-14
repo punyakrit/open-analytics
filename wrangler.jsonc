@@ -7,8 +7,9 @@
   "observability": { "enabled": true },
   // Your own domain (optional). Uncomment and set it; Cloudflare creates the DNS record and certificate:
   // "routes": [{ "pattern": "analytics.example.com", "custom_domain": true }],
-  // Every 10 minutes: pull new Dodo payments for sites connected by API key (src/worker/dodo.ts).
-  "triggers": { "crons": ["*/10 * * * *"] },
+  // Every minute: a step of any running DataFast import (src/worker/datafast.ts); every tenth minute also
+  // pull new Dodo payments for sites connected by API key (src/worker/dodo.ts).
+  "triggers": { "crons": ["* * * * *"] },
   // Per-IP limits, counted per Cloudflare location. EVENT_LIMIT guards the tracking endpoint;
   // API_LIMIT guards sign-in, the server API and uncached public reads.
   "ratelimits": [
