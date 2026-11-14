@@ -1,0 +1,9 @@
+node_modules
+dist
+.wrangler
+.dev.vars
+.env.local
+*.log
+# Your own deployment settings (domain, database id, Worker name). See README → Deploy.
+wrangler.production.jsonc
+.DS_Store

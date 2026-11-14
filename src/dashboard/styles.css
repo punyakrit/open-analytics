@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background: rgb(var(--paper));
+  color: rgb(var(--ink));
+}
+body {
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 1;
+}
+
+@layer components {
+  /* Surfaces. Panels are flat with a hairline; only things that float (menus, dialogs) cast a shadow. */
+  .card {
+    @apply rounded-xl border border-stone-200 bg-surface;
+  }
+  .pop {
+    @apply rounded-xl bg-surface shadow-pop;
+  }
+
+  /* Controls */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-stone-200 bg-surface px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-stone-300 hover:bg-stone-50 disabled:opacity-50;
+  }
+  .btn-dark {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-3.5 py-1.5 text-sm font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-40;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-ink;
+  }
+  .icon-btn {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-stone-500 transition-colors hover:bg-stone-100 hover:text-ink;
+  }
+  .input {
+    @apply w-full rounded-lg border border-stone-200 bg-surface px-3 py-2 text-sm text-ink outline-none transition placeholder:text-stone-400 focus:border-visitors focus:ring-2 focus:ring-visitors/20;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-stone-700;
+  }
+  .hint {
+    @apply mt-1.5 text-xs text-stone-500;
+  }
+
+  /* A quiet segmented control: the current choice is ink on a soft fill, the rest are muted text. */
+  .tabs {
+    @apply inline-flex items-center gap-0.5 rounded-lg border border-stone-200 bg-surface p-0.5;
+  }
+  .tab {
+    @apply rounded-md px-2.5 py-1 text-sm text-stone-500 transition-colors hover:text-ink;
+  }
+  .tab-active {
+    @apply bg-stone-100 font-medium text-ink;
+  }
+
+  .code {
+    @apply block overflow-x-auto whitespace-pre bg-stone-50 p-4 font-mono text-[13px] leading-relaxed text-stone-800;
+  }
+
+  /* Numbers: every digit the same width, so columns and changing values don't jump around. */
+  .num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.015em;
+  }
+}
+
+/* Keyboard focus is always visible; mouse clicks don't leave a ring behind. */
+:focus-visible {
+  outline: 2px solid rgb(var(--visitors));
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Motion only where it answers something you did: a dialog opening, a panel sliding in. */
+@keyframes oa-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+}
+@keyframes oa-slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+.oa-pop-in {
+  animation: oa-pop-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.oa-slide-in {
+  animation: oa-slide-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Real-time map: visitor pins and the starry space behind the globe (components/LiveView.tsx). */
+.ml-pin{position:relative;width:40px;height:52px;display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.ml-pin-head{position:relative;z-index:1;width:40px;height:40px;border-radius:9999px;border:3px solid #fff;padding:0;overflow:hidden;
+  box-shadow:0 6px 18px rgba(0,0,0,.45);transition:transform .2s}
+.ml-pin-head img{width:100%;height:100%;display:block}
+.ml-pin-tail{width:0;height:0;margin-top:-2px;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid #fff}
+.ml-pin-pulse{position:absolute;left:50%;bottom:-6px;width:18px;height:18px;margin-left:-9px;border-radius:9999px;opacity:.6;
+  animation:ml-pin-pulse 2s ease-out infinite;transform:scale(.4)}
+.ml-pin.is-active .ml-pin-head{transform:scale(1.25)}
+@keyframes ml-pin-pulse{0%{transform:scale(.4);opacity:.7}100%{transform:scale(3.2);opacity:0}}
+.ml-stars{background:
+  radial-gradient(1px 1px at 12% 18%,#fff8,transparent),radial-gradient(1px 1px at 82% 12%,#fff6,transparent),
+  radial-gradient(1.5px 1.5px at 66% 78%,#fff7,transparent),radial-gradient(1px 1px at 24% 70%,#fff5,transparent),
+  radial-gradient(1px 1px at 92% 52%,#fff6,transparent),radial-gradient(1.5px 1.5px at 40% 8%,#fff6,transparent),
+  radial-gradient(1px 1px at 6% 92%,#fff5,transparent),radial-gradient(1px 1px at 52% 94%,#fff4,transparent),
+  radial-gradient(1px 1px at 74% 34%,#fff4,transparent),radial-gradient(1px 1px at 30% 40%,#fff3,transparent),
+  radial-gradient(ellipse at 50% 50%,#13235c 0%,#070b1d 55%,#03050c 100%)}

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>%VITE_APP_NAME%</title>
+    <!-- A personal dashboard, not a page to rank: the Worker also sends X-Robots-Tag: noindex. -->
+    <meta name="robots" content="noindex" />
+    <meta name="description" content="%VITE_APP_NAME%: visitors, sources and revenue for your websites." />
+    <meta name="theme-color" content="#f4f5f7" />
+    <!-- Sets light or dark before anything draws. A file, not inline code, so the CSP can stay "script-src 'self'". -->
+    <script src="/theme.js"></script>
+
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="%VITE_APP_NAME%" />
+    <meta property="og:title" content="%VITE_APP_NAME%" />
+    <meta property="og:description" content="Visitors, sources and revenue for your websites." />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Empty on purpose: anything here would flash on every reload before React draws the page. -->
+    <div id="root"></div>
+    <noscript>%VITE_APP_NAME% needs JavaScript to show its charts.</noscript>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

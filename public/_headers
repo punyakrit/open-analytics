@@ -1,0 +1,24 @@
+# Every static file. The dashboard can't be framed by other sites (clickjacking); nothing is MIME-sniffed.
+# The same strict page policy the Worker sends (CSP in src/worker/index.ts): keep the two identical.
+# Scripts only from this site's own files; no inline code anywhere.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://www.google.com https://*.gstatic.com https://*.googleusercontent.com https://tiles.openfreemap.org; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+
+/js/script.js
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600
+
+# Vite file names change with every build, so these can be cached forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/site.webmanifest
+  Content-Type: application/manifest+json
+
+/avatars/*
+  Cache-Control: public, max-age=604800
