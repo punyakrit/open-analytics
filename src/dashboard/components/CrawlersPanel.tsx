@@ -43,8 +43,11 @@ export function CrawlersPanel() {
     ...top.map((b, i) => ({ key: b.agent, color: LINE_COLORS[i] })),
     ...(rest.length ? [{ key: OTHERS, color: color.axis }] : []),
   ];
+  // Every crawler gets a value in every bucket, 0 when it didn't come. Crawlers visit in bursts, and a bucket
+  // left empty breaks the line: a lone visit between empty hours would draw nothing at all.
   const series = (data?.series ?? []).map((row) => ({
-    ...row,
+    bucket: row.bucket,
+    ...Object.fromEntries(top.map((b) => [b.agent, Number(row[b.agent]) || 0])),
     [OTHERS]: rest.reduce((n, b) => n + (Number(row[b.agent]) || 0), 0),
   }));
   const shown = focus ? lines.filter((l) => l.key === focus) : lines;
