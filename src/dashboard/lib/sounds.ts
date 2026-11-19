@@ -40,3 +40,26 @@ export function unlockAudio() {
     void ctx.resume();
   } catch {}
 }
+
+/** A cash register for "Live payments": the drawer ("cha", a burst of filtered noise), then the bell ("ching"). */
+export function playCashRegister() {
+  try {
+    if (!ctx) ctx = new AudioContext();
+    const seconds = 0.12;
+    const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * seconds), ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 2;
+    const drawer = ctx.createBufferSource();
+    drawer.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 2800;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.3;
+    drawer.connect(filter).connect(gain).connect(ctx.destination);
+    drawer.start();
+    tone(2093, 0.09, 1.0, 0.13, 'triangle');
+    tone(3136, 0.09, 0.8, 0.06, 'sine');
+    tone(4186, 0.11, 0.55, 0.04, 'sine');
+  } catch {}
+}

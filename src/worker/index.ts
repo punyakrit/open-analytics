@@ -12,6 +12,7 @@ import { rememberOwnerDevice } from './owner';
 import { CSP } from './security';
 import { CRAWL_RETENTION_MS, crawlStats, handleCrawlApi } from './crawls';
 import { cancelImport, DataFastError, importStatus, RUN_BUDGET, runImportStep, runPendingImports, startImport } from './datafast';
+import { checkPayments } from './payment-watch';
 import { breakdown, customers, funnel, makeCtx, ONLINE_EVENTS, ONLINE_MS, overview, realtime, sparklines, visitorProfile, visitors, type FunnelStep } from './stats';
 
 const app = new Hono<AppEnv>();
@@ -476,6 +477,9 @@ app.delete('/api/sites/:id/dodo', async (c) => {
   forgetSite(c.get('site').id);
   return c.json({ ok: true });
 });
+
+// New payments for the dashboard's "Live payments" switch (payment-watch.ts). Owner only.
+app.post('/api/payments/check', requireUser, checkPayments);
 
 // ---------- importing history from DataFast (datafast.ts)
 

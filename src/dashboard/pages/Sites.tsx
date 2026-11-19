@@ -4,6 +4,7 @@ import { currencyDecimals } from '../../shared/currency';
 import { navigate } from '../App';
 import { AddSiteDialog } from '../components/AddSiteDialog';
 import { Favicon, GearIcon, LogOutIcon, PlusIcon, RefreshIcon } from '../components/Icons';
+import { LivePayments } from '../components/LivePayments';
 import { Logo } from '../components/Logo';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api, type Site, type SiteSpark } from '../lib/api';
@@ -75,6 +76,11 @@ export function Sites({ readOnly = false }: { readOnly?: boolean }) {
       <header className="flex h-16 items-center justify-between">
         <Logo />
         <div className="flex items-center gap-1">
+          {!readOnly && sites && sites.length > 0 && (
+            <div className="mr-1 hidden sm:block">
+              <LivePayments sites={sites} onNew={() => setReloadKey((k) => k + 1)} />
+            </div>
+          )}
           <ThemeToggle />
           {!readOnly && (
             <>

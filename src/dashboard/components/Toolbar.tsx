@@ -3,6 +3,7 @@ import { navigate } from '../App';
 import type { Overview, Query, Site } from '../lib/api';
 import { dayInTz } from '../lib/format';
 import { ArrowLeftIcon, ChevronDownIcon, ChevronIcon, Favicon, GearIcon, RefreshIcon } from './Icons';
+import { LivePayments } from './LivePayments';
 import { ThemeToggle } from './ThemeToggle';
 
 export const PERIODS: { value: string; label: string }[] = [
@@ -235,6 +236,8 @@ export function Toolbar({
             ))
           }
         </Dropdown>
+
+        {!readOnly && <LivePayments sites={sites} siteId={site.id} onNew={onRefresh} />}
 
         <button className="btn h-9" onClick={onLive} title="Real-time map (M)">
           <span className="h-2 w-2 animate-pulse rounded-full bg-live" />
