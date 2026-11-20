@@ -461,7 +461,7 @@ app.post('/api/sites/:id/dodo/brand', async (c) => {
 
 app.post('/api/sites/:id/dodo/sync', async (c) => {
   try {
-    return c.json(await syncDodo(c.env, c.get('site')));
+    return c.json(await syncDodo(c.env, c.get('site'), { late: true }));
   } catch (e) {
     return dodoError(c, e);
   }
@@ -692,9 +692,8 @@ app.all('*', async (c) => {
 
 export default {
   fetch: app.fetch,
-  // Every 10 minutes (wrangler.jsonc): pull new Dodo payments for sites connected by API key.
   // Every minute (wrangler.jsonc): a step of any running history import; every tenth minute, also pull new Dodo
-  // payments and drop old crawler rows.
+  // payments (including ones that took days to go through) and drop old crawler rows.
   async scheduled(controller: ScheduledController, env: AppEnv['Bindings'], ctx: ExecutionContext) {
     ctx.waitUntil(runPendingImports(env).catch(() => {}));
     if (new Date(controller.scheduledTime).getUTCMinutes() % 10 === 0) {

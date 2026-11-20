@@ -10,7 +10,7 @@ import type { Env, Site } from './env';
 import { forgetSite } from './env';
 import { decryptSecret } from './lib/crypto';
 import { tzOffset } from './lib/time';
-import { dodoPaymentInput, recordDodoRefund, recordPayment } from './payments';
+import { dodoIsRenewal, dodoPaymentInput, recordDodoRefund, recordPayment } from './payments';
 
 const HOSTS = { live: 'https://live.dodopayments.com', test: 'https://test.dodopayments.com' } as const;
 export type DodoMode = keyof typeof HOSTS;
@@ -80,14 +80,80 @@ export async function defaultSyncFrom(env: Env, site: Site): Promise<number> {
 const PAGE = 100;
 const MAX_PAGES = 20; // up to 2,000 payments a run: far beyond a normal 10 minutes, inside the Worker's request budget
 const OVERLAP_MS = 2 * 3_600_000; // each run re-reads the last 2 hours, so a payment listed late is never missed
+/**
+ * A payment can succeed long after Dodo creates it: a UPI AutoPay renewal is created, then charged a day or more
+ * later (India requires notice before the debit), and retries of a failed card renewal take days. Dodo lists and
+ * filters payments by when they were created, so a late run also looks this far back for ones that have since
+ * succeeded.
+ */
+const LATE_MS = 7 * 86_400_000;
 
 export interface SyncResult {
   payments: number;
   refunds: number;
 }
 
-/** Pull this site's brand's new payments and refunds. Records progress or the error on the site row. */
-export async function syncDodo(env: Env, site: Site): Promise<SyncResult> {
+interface Pull {
+  env: Env;
+  site: Site;
+  key: string;
+  mode: DodoMode;
+  started: number;
+}
+
+/**
+ * Record the brand's succeeded payments created from `gte` (until `lte`, if given) that aren't recorded yet, and
+ * mark recorded ones Dodo says are renewals. `strict` turns "too many to read in one run" into an error, so the
+ * next run starts from the same place; otherwise reading just stops there.
+ */
+async function pullPayments({ env, site, key, mode, started }: Pull, gte: string, lte: string | undefined, strict: boolean) {
+  let recorded = 0;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const r = await dodo(env, key, mode, '/payments', {
+      brand_id: site.dodo_brand_id!,
+      status: 'succeeded',
+      created_at_gte: gte,
+      created_at_lte: lte,
+      page_size: PAGE,
+      page_number: page,
+    });
+    const items = (r?.items ?? []) as Record<string, any>[];
+    // Skip payments already recorded (the 2-hour overlap, or the webhook got there first).
+    const ids = items.map((p) => String(p.payment_id));
+    const known = new Set<string>();
+    if (ids.length) {
+      const rows = await env.DB.prepare(`SELECT id FROM payments WHERE site_id = ? AND id IN (${ids.map(() => '?').join(', ')})`)
+        .bind(site.id, ...ids)
+        .all<{ id: string }>();
+      for (const row of rows.results) known.add(row.id);
+    }
+    for (let data of items) {
+      if (known.has(String(data.payment_id))) continue;
+      // The list leaves out settlement amounts; only a payment in another currency needs its full record.
+      if (String(data.currency ?? '').toUpperCase() !== site.currency) data = (await dodo(env, key, mode, `/payments/${encodeURIComponent(data.payment_id)}`)) ?? data;
+      await recordPayment(env.DB, site, dodoPaymentInput(site, data, Date.parse(data.created_at ?? '') || started));
+      recorded++;
+    }
+    // Renewals recorded before renewals were recognised.
+    const renewals = items.filter((p) => known.has(String(p.payment_id)) && dodoIsRenewal(p)).map((p) => String(p.payment_id));
+    if (renewals.length) {
+      await env.DB.prepare(`UPDATE payments SET renewal = 1 WHERE site_id = ? AND renewal = 0 AND id IN (${renewals.map(() => '?').join(', ')})`)
+        .bind(site.id, ...renewals)
+        .run();
+    }
+    if (items.length < PAGE) break;
+    if (page === MAX_PAGES - 1 && strict) throw new DodoError(413, `More than ${MAX_PAGES * PAGE} payments to catch up on; the next sync continues.`);
+  }
+  return recorded;
+}
+
+/**
+ * Pull this site's brand's new payments and refunds. Records progress or the error on the site row.
+ * `late` also looks back LATE_MS for payments that succeeded long after they were created (renewals paid by UPI
+ * AutoPay, retried card renewals). The 10-minute sync and "Sync now" do; the Live payments check, which runs every
+ * few seconds, doesn't.
+ */
+export async function syncDodo(env: Env, site: Site, { late = false }: { late?: boolean } = {}): Promise<SyncResult> {
   const started = Date.now();
   const setStatus = (error: string | null, synced: boolean) =>
     env.DB.prepare(`UPDATE sites SET dodo_sync_error = ?${synced ? ', dodo_synced_at = ?' : ''} WHERE id = ?`)
@@ -99,32 +165,17 @@ export async function syncDodo(env: Env, site: Site): Promise<SyncResult> {
     if (!key) throw new DodoError(400, 'The saved Dodo key can no longer be read (the server secret changed). Paste the key again.');
     if (!site.dodo_brand_id) throw new DodoError(400, 'Pick which Dodo brand is this website.');
     const mode: DodoMode = site.dodo_api_mode === 'test' ? 'test' : 'live';
-    const since = new Date(Math.max(site.dodo_sync_from ?? 0, site.dodo_synced_at ? site.dodo_synced_at - OVERLAP_MS : 0)).toISOString();
-    let payments = 0;
-    let refunds = 0;
+    const from = site.dodo_sync_from ?? 0;
+    const recent = Math.max(from, site.dodo_synced_at ? site.dodo_synced_at - OVERLAP_MS : 0);
+    const since = new Date(recent).toISOString();
+    const pull: Pull = { env, site, key, mode, started };
 
-    for (let page = 0; page < MAX_PAGES; page++) {
-      const r = await dodo(env, key, mode, '/payments', { brand_id: site.dodo_brand_id, status: 'succeeded', created_at_gte: since, page_size: PAGE, page_number: page });
-      const items = (r?.items ?? []) as Record<string, any>[];
-      // Skip payments already recorded (the 2-hour overlap, or the webhook got there first).
-      const ids = items.map((p) => String(p.payment_id));
-      const known = new Set<string>();
-      if (ids.length) {
-        const rows = await env.DB.prepare(`SELECT id FROM payments WHERE site_id = ? AND id IN (${ids.map(() => '?').join(', ')})`)
-          .bind(site.id, ...ids)
-          .all<{ id: string }>();
-        for (const row of rows.results) known.add(row.id);
-      }
-      for (let data of items) {
-        if (known.has(String(data.payment_id))) continue;
-        // The list leaves out settlement amounts; only a payment in another currency needs its full record.
-        if (String(data.currency ?? '').toUpperCase() !== site.currency) data = (await dodo(env, key, mode, `/payments/${encodeURIComponent(data.payment_id)}`)) ?? data;
-        await recordPayment(env.DB, site, dodoPaymentInput(site, data, Date.parse(data.created_at ?? '') || started));
-        payments++;
-      }
-      if (items.length < PAGE) break;
-      if (page === MAX_PAGES - 1) throw new DodoError(413, `More than ${MAX_PAGES * PAGE} payments to catch up on; the next sync continues.`);
-    }
+    let payments = await pullPayments(pull, since, undefined, true);
+    // Older payments that may have succeeded since they were last looked at. Best effort: a run that can't read
+    // them all still counts as synced.
+    const lateFrom = Math.max(from, started - LATE_MS);
+    if (late && lateFrom < recent) payments += await pullPayments(pull, new Date(lateFrom).toISOString(), since, false);
+    let refunds = 0;
 
     // Dodo can't filter refunds by brand, so take the succeeded ones and keep refunds of this site's payments.
     for (let page = 0; page < MAX_PAGES; page++) {
@@ -150,7 +201,7 @@ export async function syncAllDodo(env: Env) {
   const sites = await env.DB.prepare('SELECT * FROM sites WHERE dodo_api_key IS NOT NULL AND dodo_brand_id IS NOT NULL').all<Site>();
   for (const site of sites.results) {
     try {
-      await syncDodo(env, site);
+      await syncDodo(env, site, { late: true });
     } catch {
       // Already recorded on the site row, where the settings page shows it.
     }

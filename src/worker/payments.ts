@@ -69,6 +69,14 @@ async function attribute(db: D1Database, site: Site, p: PaymentInput) {
       if (p.kind === 'payment') renewal = true;
     }
   }
+  if (!renewal && p.kind === 'payment' && p.subscriptionId) {
+    // An earlier payment of the same subscription, even one nobody could be linked to.
+    const earlier = await db
+      .prepare(`SELECT 1 FROM payments WHERE site_id = ? AND subscription_id = ? AND id != ? AND kind = 'payment' AND ts < ? LIMIT 1`)
+      .bind(site.id, p.subscriptionId, p.id, p.ts)
+      .first();
+    if (earlier) renewal = true;
+  }
   if (!visitorId && p.email) {
     const v = await db
       .prepare('SELECT id FROM visitors WHERE site_id = ? AND email = ? ORDER BY first_seen DESC LIMIT 1')
@@ -156,7 +164,8 @@ export async function recordPayment(db: D1Database, site: Site, p: PaymentInput)
            visitor_id = CASE WHEN ${better} THEN COALESCE(excluded.visitor_id, payments.visitor_id) ELSE payments.visitor_id END,
            session_id = CASE WHEN ${better} THEN COALESCE(excluded.session_id, payments.session_id) ELSE payments.session_id END,
            matched_by = CASE WHEN ${better} THEN COALESCE(excluded.matched_by, payments.matched_by) ELSE payments.matched_by END,
-           checkout_id = COALESCE(payments.checkout_id, excluded.checkout_id)
+           checkout_id = COALESCE(payments.checkout_id, excluded.checkout_id),
+           renewal = MAX(payments.renewal, excluded.renewal)
          WHERE payments.site_id = excluded.site_id`,
       )
       .bind(
@@ -197,7 +206,7 @@ export async function rematchPayments(db: D1Database, site: Site) {
   const rows = await db
     .prepare("SELECT * FROM payments WHERE site_id = ? AND kind = 'payment' AND visitor_id IS NULL ORDER BY ts LIMIT 500")
     .bind(site.id)
-    .all<{ id: string; ts: number; amount: number; currency: string; customer_id: string | null; email: string | null; name: string | null; provider: string; subscription_id: string | null }>();
+    .all<{ id: string; ts: number; amount: number; currency: string; customer_id: string | null; email: string | null; name: string | null; provider: string; subscription_id: string | null; renewal: number }>();
   let matched = 0;
   const details: { id: string; name: string | null; matched: boolean; reason: string | null }[] = [];
   for (const r of rows.results) {
@@ -212,6 +221,8 @@ export async function rematchPayments(db: D1Database, site: Site) {
       email: r.email,
       name: r.name,
       subscriptionId: r.subscription_id,
+      // A known renewal stays one, and is never matched by checkout timing.
+      renewal: r.renewal === 1,
     });
     details.push({ id: r.id, name: r.name, matched: !!a.visitorId, reason: a.reason });
     if (!a.visitorId) continue;
@@ -365,6 +376,15 @@ export function dodoProducts(data: Record<string, any>): string[] {
   return Array.isArray(data.product_cart) ? data.product_cart.map((p: any) => p?.product_id).filter(Boolean) : [];
 }
 
+/**
+ * Is this Dodo payment an existing customer paying again? Dodo tags every charge: `new` is a first purchase or a
+ * new subscription; `renewal` (the next billing period), `plan_change` and `on_demand` come from a subscription
+ * that already exists.
+ */
+export function dodoIsRenewal(data: Record<string, any>): boolean {
+  return typeof data.charge_type === 'string' && data.charge_type !== 'new';
+}
+
 /** A Dodo payment object (a webhook's `data`, or an item from `GET /payments`) as a payment record. */
 export function dodoPaymentInput(site: Site, data: Record<string, any>, ts: number): PaymentInput {
   const customer = (data.customer ?? {}) as Record<string, unknown>;
@@ -389,6 +409,7 @@ export function dodoPaymentInput(site: Site, data: Record<string, any>, ts: numb
     name: str(customer.name),
     subscriptionId: str(data.subscription_id) ?? (Array.isArray(data.subscription_ids) ? str(data.subscription_ids[0]) : null),
     productId: dodoProducts(data)[0] ?? null,
+    renewal: dodoIsRenewal(data),
   };
 }
 

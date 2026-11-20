@@ -237,6 +237,11 @@ Open a site's **Settings → Payments** and pick your provider. For Dodo, the si
 read-only key (Brands, Payments, Refunds), pick the brand, and payments are pulled every 10 minutes. The webhook
 below is the alternative.
 
+Subscription renewals are counted as revenue and marked as renewals, so they don't inflate new customers. Payments
+that go through a day or more after they start, like UPI AutoPay renewals (India requires a notice before each
+debit) or retried card renewals, are picked up too: each 10-minute sync looks back 7 days for payments that have
+since succeeded.
+
 ### Dodo Payments
 
 1. In Dodo → Developer → Webhooks, add `https://YOUR-HOST/api/webhooks/dodo/SITE_ID` and subscribe to
