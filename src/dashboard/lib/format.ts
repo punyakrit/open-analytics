@@ -1,6 +1,14 @@
+import { currencyDecimals } from '../../shared/currency';
+
 export function fmtNumber(n: number): string {
   if (n >= 10_000) return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n).toLowerCase();
   return new Intl.NumberFormat('en').format(Math.round(n));
+}
+
+/** What the customer was actually charged (e.g. "£9.12"), shown beside an amount converted to the site's currency. */
+export function fmtCharged(minor: number | null | undefined, currency: string | null | undefined): string | null {
+  if (minor == null || !currency) return null;
+  return fmtMoney(Math.abs(minor), currency, currencyDecimals(currency));
 }
 
 export function fmtMoney(minor: number, currency: string, decimals: number, compact = false): string {

@@ -6,6 +6,7 @@ import { clearSession, cookieName, currentUser, endAllSessions, googleCallback, 
 import { billingWebhook, checkout, planInfo } from './billing';
 import { encryptSecret, passwordsMatch, randomId, signToken, verifyToken } from './lib/crypto';
 import { getCookie, setCookie } from 'hono/cookie';
+import { convertStoredPayments } from './fx';
 import { defaultSyncFrom, DodoError, listBrands, modeOfKey, storedKey, syncAllDodo, syncDodo } from './dodo';
 import { handleDodoWebhook, handleGoalApi, handlePaymentApi, handleStripeWebhook, learnDodoProducts, rematchPayments } from './payments';
 import { rememberOwnerDevice } from './owner';
@@ -382,6 +383,8 @@ app.patch('/api/sites/:id', async (c) => {
     )
     .run();
   forgetSite(site.id);
+  // Revenue is kept in the site's currency: convert what's there to the new one.
+  if (next.currency !== site.currency) c.executionCtx.waitUntil(convertStoredPayments(c.env.DB, site.id).catch(() => 0));
   return c.json(publicSite(next));
 });
 
@@ -693,11 +696,12 @@ app.all('*', async (c) => {
 export default {
   fetch: app.fetch,
   // Every minute (wrangler.jsonc): a step of any running history import; every tenth minute, also pull new Dodo
-  // payments (including ones that took days to go through) and drop old crawler rows.
+  // payments (including ones that took days to go through), convert any payment still in a foreign currency, and
+  // drop old crawler rows.
   async scheduled(controller: ScheduledController, env: AppEnv['Bindings'], ctx: ExecutionContext) {
     ctx.waitUntil(runPendingImports(env).catch(() => {}));
     if (new Date(controller.scheduledTime).getUTCMinutes() % 10 === 0) {
-      ctx.waitUntil(syncAllDodo(env));
+      ctx.waitUntil(syncAllDodo(env).then(() => convertStoredPayments(env.DB)).catch(() => {}));
       ctx.waitUntil(env.DB.prepare('DELETE FROM crawls WHERE ts < ?').bind(Date.now() - CRAWL_RETENTION_MS).run());
     }
   },

@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { displayName } from '../../shared/names';
 import { useDash } from '../lib/context';
-import { countryName, dayInTz, fmtDuration } from '../lib/format';
+import { countryName, dayInTz, fmtCharged, fmtDuration } from '../lib/format';
 import { useApi } from '../lib/useApi';
 import { CopyButton } from './CodeBlock';
 import { Avatar, BrowserIcon, CloseIcon, DeviceIcon, Flag, OSIcon, SourceIcon } from './Icons';
@@ -31,6 +31,8 @@ interface Payment {
   amount: number;
   kind: 'payment' | 'refund';
   renewal?: number | null;
+  original_amount?: number | null;
+  original_currency?: string | null;
 }
 interface Profile {
   visitor: { id: string; first_seen: number; name: string | null; email: string | null; user_id: string | null } | null;
@@ -181,7 +183,12 @@ function ProfileBody({ id, p }: { id: string; p: Profile }) {
                     {new Intl.DateTimeFormat('en', { timeZone: tz, day: 'numeric', month: 'short' }).format(x.ts)}{' '}
                     <span className="text-stone-400">{x.kind === 'refund' ? 'refund' : x.renewal ? 'renewal' : 'payment'}</span>
                   </span>
-                  <span className={`num font-medium ${x.amount < 0 ? 'text-red-500' : ''}`}>{money(x.amount)}</span>
+                  <span className={`num font-medium ${x.amount < 0 ? 'text-red-500' : ''}`}>
+                    {money(x.amount)}
+                    {fmtCharged(x.original_amount, x.original_currency) && (
+                      <span className="ml-1.5 font-normal text-stone-400">{fmtCharged(x.original_amount, x.original_currency)}</span>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -288,11 +295,13 @@ function describe(it: Item, domain: string, money: (minor: number, compact?: boo
     case 'payment': {
       const x = it.payment;
       const refund = x.kind === 'refund';
+      const charged = fmtCharged(x.original_amount, x.original_currency);
       return {
-        text: `${refund ? 'Refunded' : x.renewal ? 'Renewed for' : 'Paid'} ${money(Math.abs(x.amount))}`,
+        text: `${refund ? 'Refunded' : x.renewal ? 'Renewed for' : 'Paid'} ${money(Math.abs(x.amount))}${charged ? ` (${charged})` : ''}`,
         node: (
           <span className="font-medium">
             {refund ? 'Refunded' : x.renewal ? 'Renewed for' : 'Paid'} {money(Math.abs(x.amount))}
+            {charged && <span className="ml-1 font-normal text-stone-400">({charged})</span>}
           </span>
         ),
         icon: <Glyph d="M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.7 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3" />,

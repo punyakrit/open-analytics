@@ -3,7 +3,7 @@ import { currencyDecimals } from '../../shared/currency';
 import { displayName } from '../../shared/names';
 import { api, type Site } from '../lib/api';
 import { launchFireworks } from '../lib/fireworks';
-import { fmtMoney } from '../lib/format';
+import { fmtCharged, fmtMoney } from '../lib/format';
 import { usePref } from '../lib/prefs';
 import { playCashRegister, unlockAudio } from '../lib/sounds';
 import { BellIcon, CloseIcon, RefreshIcon } from './Icons';
@@ -14,6 +14,8 @@ interface NewPayment {
   ts: number;
   amount: number;
   currency: string;
+  original_amount: number | null;
+  original_currency: string | null;
   renewal: number;
   name: string | null;
   email: string | null;
@@ -150,6 +152,9 @@ export function LivePayments({ sites, siteId, onNew }: { sites: Site[]; siteId?:
                   <p className="text-sm">
                     <span className="font-semibold">{who}</span> {p.renewal ? 'renewed for' : 'paid'}{' '}
                     <span className="num font-semibold text-ink">{fmtMoney(p.amount, p.currency, currencyDecimals(p.currency))}</span>
+                    {fmtCharged(p.original_amount, p.original_currency) && (
+                      <span className="num text-stone-500"> ({fmtCharged(p.original_amount, p.original_currency)})</span>
+                    )}
                   </p>
                   <p className="truncate text-[13px] text-stone-500">
                     {site?.name ?? 'Your site'}

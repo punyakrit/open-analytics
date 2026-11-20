@@ -23,6 +23,8 @@ export interface NewPayment {
   ts: number;
   amount: number;
   currency: string;
+  original_amount: number | null;
+  original_currency: string | null;
   renewal: number;
   name: string | null;
   email: string | null;
@@ -58,7 +60,8 @@ export async function checkPayments(c: Context<AppEnv>) {
   if (cursor === null || cursor >= seq) return c.json({ cursor: Math.max(seq, cursor ?? 0), payments: [], checked_at: checkedAt, synced: due.length });
 
   const rows = await c.env.DB.prepare(
-    `SELECT p.id, p.site_id, p.ts, p.amount, p.currency, p.renewal, p.name, p.email, p.visitor_id, s.source, s.utm_campaign AS campaign
+    `SELECT p.id, p.site_id, p.ts, p.amount, p.currency, p.original_amount, p.original_currency, p.renewal, p.name, p.email, p.visitor_id,
+            s.source, s.utm_campaign AS campaign
      FROM payments p LEFT JOIN sessions s ON s.site_id = p.site_id AND s.id = p.session_id
      WHERE p.site_id IN (${marks}) AND p.rowid > ? AND p.rowid <= ? AND p.kind = 'payment' AND p.amount > 0
      ORDER BY p.rowid DESC LIMIT ${MAX_RETURNED}`,

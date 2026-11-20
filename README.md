@@ -317,7 +317,11 @@ No analytics tool is 100% accurate. These are the main gaps and how this project
 - **Safari** keeps cookies set by JavaScript for at most 7 days. A Safari visitor who returns after more than a week counts as new. The
   email fallback above recovers most of these payments.
 - **Bots** are filtered by user agent and the `navigator.webdriver` flag.
-- Revenue in a different currency than the site's is converted only when Dodo gives a settlement amount in the site's currency.
+- **Currencies:** revenue is kept in the site's currency. A payment in another currency is converted with the
+  provider's own figure when it gives one (Dodo's settlement amount), otherwise at that day's reference rate from the
+  free [currency-api](https://github.com/fawazahmed0/exchange-api). The amount the customer was charged is kept and
+  shown beside it (e.g. "$11.98 (£9.12)"), and a refund uses its payment's rate. Changing a site's currency converts
+  its payments again.
 
 ## FAQ
 
