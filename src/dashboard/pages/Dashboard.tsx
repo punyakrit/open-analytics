@@ -4,6 +4,7 @@ import { CrawlersPanel } from '../components/CrawlersPanel';
 import { GoalsPanel } from '../components/GoalsPanel';
 import { OverviewCard } from '../components/OverviewCard';
 import { Panel, renderLabel } from '../components/Panel';
+import { SearchInsights } from '../components/SearchInsights';
 import { Toolbar } from '../components/Toolbar';
 import { CloseIcon, GlobeIcon } from '../components/Icons';
 import { VisitorModal } from '../components/VisitorModal';
@@ -51,7 +52,26 @@ function MapButton({ online, onOpen }: { online: number; onOpen: () => void }) {
   );
 }
 
-export function Dashboard({ siteId, readOnly = false }: { siteId: string; readOnly?: boolean }) {
+/** Overview and, for the owner, Search & AI. The period and Back stay as they are when switching. */
+function ViewTabs({ siteId, view }: { siteId: string; view: 'overview' | 'search' }) {
+  const go = (to: 'overview' | 'search') =>
+    to !== view && navigate(`/site/${siteId}${to === 'search' ? '/search' : ''}${window.location.search}`, { replace: true });
+  const views = [
+    ['overview', 'Overview'],
+    ['search', 'Search & AI'],
+  ] as const;
+  return (
+    <div className="tabs mt-4" role="tablist" aria-label="Dashboard view">
+      {views.map(([v, label]) => (
+        <button key={v} role="tab" aria-selected={view === v} className={`tab ${view === v ? 'tab-active' : ''}`} onClick={() => go(v)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Dashboard({ siteId, readOnly = false, view = 'overview' }: { siteId: string; readOnly?: boolean; view?: 'overview' | 'search' }) {
   const base = readOnly ? '/api/public/sites' : '/api/sites';
   const [q, update] = useQueryState(siteId);
   const [reloadKey, setReloadKey] = useState(0);
@@ -133,77 +153,85 @@ export function Dashboard({ siteId, readOnly = false }: { siteId: string; readOn
           readOnly={readOnly}
         />
 
-        {Object.keys(q.filters).length > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            {Object.entries(q.filters).map(([k, v]) => (
-              <span key={k} className="flex items-center gap-1.5 rounded-full border border-stone-200 bg-surface py-0.5 pl-3 pr-0.5 text-sm">
-                <span className="text-stone-500">{FILTER_LABELS[k]?.label ?? k}</span>
-                <span className="flex items-center gap-1.5 font-medium">{renderLabel(FILTER_LABELS[k]?.dim ?? k, { label: v || null })}</span>
-                <button className="flex h-6 w-6 items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 hover:text-ink" onClick={() => removeFilter(k)} aria-label="Remove filter">
-                  <CloseIcon size={13} />
+        {!readOnly && <ViewTabs siteId={siteId} view={view} />}
+
+        {!readOnly && view === 'search' ? (
+          <SearchInsights />
+        ) : (
+          <>
+            {Object.keys(q.filters).length > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {Object.entries(q.filters).map(([k, v]) => (
+                  <span key={k} className="flex items-center gap-1.5 rounded-full border border-stone-200 bg-surface py-0.5 pl-3 pr-0.5 text-sm">
+                    <span className="text-stone-500">{FILTER_LABELS[k]?.label ?? k}</span>
+                    <span className="flex items-center gap-1.5 font-medium">{renderLabel(FILTER_LABELS[k]?.dim ?? k, { label: v || null })}</span>
+                    <button className="flex h-6 w-6 items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 hover:text-ink" onClick={() => removeFilter(k)} aria-label="Remove filter">
+                      <CloseIcon size={13} />
+                    </button>
+                  </span>
+                ))}
+                <button className="btn-ghost text-xs" onClick={() => update({ filters: {} })}>
+                  Clear filters
                 </button>
-              </span>
-            ))}
-            <button className="btn-ghost text-xs" onClick={() => update({ filters: {} })}>
-              Clear filters
-            </button>
-          </div>
+              </div>
+            )}
+
+            <div className="mt-5">
+              <OverviewCard data={overview} />
+            </div>
+
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <Panel
+                tabs={[
+                  { label: 'Channel', dim: 'channel', filter: 'channel' },
+                  { label: 'Referrer', dim: 'source', filter: 'source' },
+                  { label: 'Campaign', dim: 'campaign', filter: 'utm_campaign' },
+                  { label: 'Keyword', dim: 'keyword', filter: 'utm_term' },
+                ]}
+              />
+              <Panel
+                tabs={[
+                  { label: 'Country', dim: 'country', filter: 'country' },
+                  { label: 'Region', dim: 'region', filter: 'region' },
+                  { label: 'City', dim: 'city', filter: 'city' },
+                ]}
+              />
+              <Panel
+                tabs={[
+                  { label: 'Page', dim: 'page', filter: 'page' },
+                  { label: 'Entry page', dim: 'entry_page', filter: 'entry_page' },
+                  { label: 'Exit link', dim: 'exit_link' },
+                  { label: 'Hostname', dim: 'hostname', filter: 'hostname' },
+                ]}
+              />
+              <Panel
+                tabs={[
+                  { label: 'Browser', dim: 'browser', filter: 'browser' },
+                  { label: 'OS', dim: 'os', filter: 'os' },
+                  { label: 'Device', dim: 'device', filter: 'device' },
+                ]}
+              />
+            </div>
+
+            <div className="mt-3">
+              <GoalsPanel totalVisitors={overview?.current.visitors ?? 0} />
+            </div>
+
+            <div className="mt-3">
+              <CrawlersPanel />
+            </div>
+
+            <p className="mt-8 text-center text-xs leading-relaxed text-stone-400">
+              {overview?.imported && (
+                <>
+                  Includes {overview.imported.origin === 'datafast' ? 'DataFast' : overview.imported.origin} history from {overview.imported.from} to {overview.imported.to} as
+                  daily totals{Object.keys(q.filters).length > 0 ? ', left out while filtering' : ''}.{' '}
+                </>
+              )}
+              Days follow {site.timezone}. Revenue is in {site.currency}.
+            </p>
+          </>
         )}
-
-        <div className="mt-5">
-          <OverviewCard data={overview} />
-        </div>
-
-        <div className="mt-3 grid gap-3 lg:grid-cols-2">
-          <Panel
-            tabs={[
-              { label: 'Channel', dim: 'channel', filter: 'channel' },
-              { label: 'Referrer', dim: 'source', filter: 'source' },
-              { label: 'Campaign', dim: 'campaign', filter: 'utm_campaign' },
-              { label: 'Keyword', dim: 'keyword', filter: 'utm_term' },
-            ]}
-          />
-          <Panel
-            tabs={[
-              { label: 'Country', dim: 'country', filter: 'country' },
-              { label: 'Region', dim: 'region', filter: 'region' },
-              { label: 'City', dim: 'city', filter: 'city' },
-            ]}
-          />
-          <Panel
-            tabs={[
-              { label: 'Page', dim: 'page', filter: 'page' },
-              { label: 'Entry page', dim: 'entry_page', filter: 'entry_page' },
-              { label: 'Exit link', dim: 'exit_link' },
-              { label: 'Hostname', dim: 'hostname', filter: 'hostname' },
-            ]}
-          />
-          <Panel
-            tabs={[
-              { label: 'Browser', dim: 'browser', filter: 'browser' },
-              { label: 'OS', dim: 'os', filter: 'os' },
-              { label: 'Device', dim: 'device', filter: 'device' },
-            ]}
-          />
-        </div>
-
-        <div className="mt-3">
-          <GoalsPanel totalVisitors={overview?.current.visitors ?? 0} />
-        </div>
-
-        <div className="mt-3">
-          <CrawlersPanel />
-        </div>
-
-        <p className="mt-8 text-center text-xs leading-relaxed text-stone-400">
-          {overview?.imported && (
-            <>
-              Includes {overview.imported.origin === 'datafast' ? 'DataFast' : overview.imported.origin} history from {overview.imported.from} to {overview.imported.to} as
-              daily totals{Object.keys(q.filters).length > 0 ? ', left out while filtering' : ''}.{' '}
-            </>
-          )}
-          Days follow {site.timezone}. Revenue is in {site.currency}.
-        </p>
       </div>
       <MapButton online={overview?.online ?? 0} onOpen={openLive} />
       {!readOnly && <VisitorModal key={visitor ?? 'none'} visitorId={visitor} onClose={() => setVisitor(null)} />}

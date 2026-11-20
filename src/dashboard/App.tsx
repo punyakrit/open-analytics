@@ -31,7 +31,7 @@ const HOME_TITLE = BRAND;
 const HOME_DESCRIPTION = `${BRAND}: visitors, sources and revenue for your websites.`;
 /** The owner's sign-in page. Nothing links to it: the owner types it in. */
 export const ADMIN_LOGIN = '/admin-login';
-const APP_PAGE = /^\/(admin-login|billing(\/.*)?|site\/[\w-]+(\/settings|\/live)?\/?)$/;
+const APP_PAGE = /^\/(admin-login|billing(\/.*)?|site\/[\w-]+(\/settings|\/live|\/search)?\/?)$/;
 const LIVE_PAGE = /^\/site\/([\w-]+)\/live\/?$/;
 
 function setTag(selector: string, create: () => HTMLElement, attr: string, value: string) {
@@ -140,13 +140,14 @@ export function App() {
     const settings = /^\/site\/([\w-]+)\/settings\/?$/.exec(path);
     const live = LIVE_PAGE.exec(path);
     const site = /^\/site\/([\w-]+)\/?$/.exec(path);
-    // The dashboard stays mounted while its settings panel opens and closes over it.
-    const dashboardId = settings?.[1] ?? site?.[1];
+    const search = /^\/site\/([\w-]+)\/search\/?$/.exec(path);
+    // The dashboard stays mounted while its settings panel opens and closes over it, and between its tabs.
+    const dashboardId = settings?.[1] ?? site?.[1] ?? search?.[1];
     page = live ? (
       <LivePage key={path} siteId={live[1]} readOnly={false} />
     ) : dashboardId ? (
       <>
-        <Dashboard key={dashboardId} siteId={dashboardId} />
+        <Dashboard key={dashboardId} siteId={dashboardId} view={search ? 'search' : 'overview'} />
         {settings && <Settings siteId={dashboardId} />}
       </>
     ) : (

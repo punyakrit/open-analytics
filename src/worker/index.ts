@@ -7,6 +7,8 @@ import { billingWebhook, checkout, planInfo } from './billing';
 import { encryptSecret, passwordsMatch, randomId, signToken, verifyToken } from './lib/crypto';
 import { getCookie, setCookie } from 'hono/cookie';
 import { convertStoredPayments } from './fx';
+import { insights } from './insights';
+import { siteCheck } from './site-check';
 import { defaultSyncFrom, DodoError, listBrands, modeOfKey, storedKey, syncAllDodo, syncDodo } from './dodo';
 import { handleDodoWebhook, handleGoalApi, handlePaymentApi, handleStripeWebhook, learnDodoProducts, rematchPayments } from './payments';
 import { rememberOwnerDevice } from './owner';
@@ -527,7 +529,7 @@ app.delete('/api/sites/:id', async (c) => {
   const id = c.get('site').id;
   await c.env.DB.batch(
     // Everything stored for the site, so deleting it really removes its visitors' data.
-    ['events', 'sessions', 'visitors', 'payments', 'funnels', 'payment_claims', 'pending_payments', 'dodo_products', 'crawls', 'imported_daily', 'imported_breakdown', 'imported_hourly', 'imports'].map((t) =>
+    ['events', 'sessions', 'visitors', 'payments', 'funnels', 'payment_claims', 'pending_payments', 'dodo_products', 'crawls', 'site_checks', 'imported_daily', 'imported_breakdown', 'imported_hourly', 'imports'].map((t) =>
       c.env.DB.prepare(`DELETE FROM ${t} WHERE site_id = ?`).bind(id),
     ).concat(c.env.DB.prepare('DELETE FROM sites WHERE id = ?').bind(id)),
   );
@@ -561,6 +563,11 @@ const funnelStatsHandler = async (c: Context<AppEnv>) => {
 
 app.get('/api/sites/:id/overview', overviewHandler);
 app.get('/api/sites/:id/crawls', crawlsHandler);
+// Owner-only: suggestions about the site aren't part of a public dashboard.
+app.get('/api/sites/:id/insights', async (c) => c.json(await insights(makeCtx(c))));
+// robots.txt and sitemap, fetched from the site itself: kept 12 hours, or checked again with POST.
+app.get('/api/sites/:id/site-check', async (c) => c.json(await siteCheck(c.env, c.get('site'))));
+app.post('/api/sites/:id/site-check', async (c) => c.json(await siteCheck(c.env, c.get('site'), true)));
 app.get('/api/sites/:id/breakdown', breakdownHandler);
 
 // Dodo payments that couldn't be placed on a site yet, grouped by product.

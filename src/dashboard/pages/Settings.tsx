@@ -308,16 +308,16 @@ const STACKS = ['Next.js', 'Express', 'Cloudflare', 'Other'] as const;
 function CrawlerSetup({ site, origin }: { site: Site; origin: string }) {
   const [stack, setStack] = useState<(typeof STACKS)[number]>('Next.js');
   const re = `/${CRAWLER_PATTERN}/i`;
-  const post = (ua: string, path: string, country: string, key: string) =>
+  const post = (ua: string, path: string, country: string, key: string, status = '') =>
     `fetch('${origin}/api/v1/crawls', {
       method: 'POST',
       headers: { authorization: \`Bearer \${${key}}\`, 'content-type': 'application/json' },
-      body: JSON.stringify({ user_agent: ${ua}, path: ${path}${country ? `, country: ${country}` : ''} }),
+      body: JSON.stringify({ user_agent: ${ua}, path: ${path}${country ? `, country: ${country}` : ''}${status ? `, status: ${status}` : ''} }),
     }).catch(() => {})`;
   const snippets: Record<(typeof STACKS)[number], { label: string; code: string; note: string }> = {
     'Next.js': {
       label: 'middleware.ts (proxy.ts on Next.js 16)',
-      note: "Put it next to your app folder. On Next.js 16 the file is proxy.ts and the function is named proxy. Already have one? Add the if block to it.",
+      note: "Put it next to your app folder. On Next.js 16 the file is proxy.ts and the function is named proxy. Already have one? Add the if block to it. Middleware runs before the page, so it can't send the response code (the other snippets do).",
       code: `import { NextResponse, type NextFetchEvent, type NextRequest } from 'next/server';
 
 // Search engines and AI crawlers that identify themselves.
@@ -347,34 +347,39 @@ const CRAWLERS = ${re};
 app.use((req, res, next) => {
   const ua = req.get('user-agent') || '';
   if (CRAWLERS.test(ua)) {
-    ${post('ua', 'req.path', '', 'process.env.OPEN_ANALYTICS_KEY')};
+    // Once the response is sent, with its status (404s and errors show up under Search & AI).
+    res.on('finish', () => {
+      ${post('ua', 'req.path', '', 'process.env.OPEN_ANALYTICS_KEY', 'res.statusCode')};
+    });
   }
   next();
 });`,
     },
     Cloudflare: {
       label: 'functions/_middleware.js (Pages) or your Worker',
-      note: 'Add OPEN_ANALYTICS_KEY as a secret: npx wrangler secret put OPEN_ANALYTICS_KEY. In a Worker, put the if block at the top of fetch() and use ctx.waitUntil.',
+      note: 'Add OPEN_ANALYTICS_KEY as a secret: npx wrangler secret put OPEN_ANALYTICS_KEY. In a Worker, get the response first, then run the if block with ctx.waitUntil.',
       code: `// Search engines and AI crawlers that identify themselves.
 const CRAWLERS = ${re};
 
 export async function onRequest(context) {
   const { request, env } = context;
+  const response = await context.next();
   const ua = request.headers.get('user-agent') || '';
   if (CRAWLERS.test(ua)) {
+    // After the response, with its status (404s and errors show up under Search & AI).
     context.waitUntil(
-      ${post('ua', 'new URL(request.url).pathname', 'request.cf?.country', 'env.OPEN_ANALYTICS_KEY')},
+      ${post('ua', 'new URL(request.url).pathname', 'request.cf?.country', 'env.OPEN_ANALYTICS_KEY', 'response.status')},
     );
   }
-  return context.next();
+  return response;
 }`,
     },
     Other: {
       label: 'Any server: one POST per crawler request',
-      note: 'Send the request’s user agent and path. Requests that aren’t from a known crawler are ignored, so it’s safe to send more than needed.',
+      note: 'Send the request’s user agent and path, and the response code if you have it. Requests that aren’t from a known crawler are ignored, so it’s safe to send more than needed.',
       code: `curl -X POST ${origin}/api/v1/crawls \\
   -H "Authorization: Bearer $OPEN_ANALYTICS_KEY" -H "Content-Type: application/json" \\
-  -d '{"user_agent":"Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)","path":"/pricing"}'`,
+  -d '{"user_agent":"Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)","path":"/pricing","status":200}'`,
     },
   };
   const s = snippets[stack];

@@ -29,19 +29,22 @@ function cleanPath(raw: unknown): string | null {
 
 const cleanCountry = (raw: unknown) => (typeof raw === 'string' && /^[A-Za-z]{2}$/.test(raw) ? raw.toUpperCase() : null);
 
-export function recordCrawl(db: D1Database, site: Site, userAgent: string, path: string, country: string | null, ts = Date.now()) {
+const cleanStatus = (raw: unknown) => (typeof raw === 'number' && Number.isInteger(raw) && raw >= 100 && raw <= 599 ? raw : null);
+
+export function recordCrawl(db: D1Database, site: Site, userAgent: string, path: string, country: string | null, status: number | null = null, ts = Date.now()) {
   const bot = crawlerFor(userAgent);
   if (!bot) return null;
   return db
-    .prepare('INSERT INTO crawls (site_id, ts, agent, kind, path, country) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(site.id, ts, bot.agent, bot.kind, path, country)
+    .prepare('INSERT INTO crawls (site_id, ts, agent, kind, path, country, status) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(site.id, ts, bot.agent, bot.kind, path, country, status)
     .run()
     .then(() => bot);
 }
 
 /**
  * POST /api/v1/crawls  Authorization: Bearer <site api key>
- * { "user_agent": "...GPTBot/1.2...", "path": "/pricing", "country": "US" }   ("url" works instead of "path")
+ * { "user_agent": "...GPTBot/1.2...", "path": "/pricing", "country": "US", "status": 200 }   ("url" works instead of "path")
+ * `status`, the response code the crawler got, is optional; with it the Search & AI tab lists broken pages.
  * Sent by the snippet in your site's server for each request from a known crawler. Anything that isn't a
  * known crawler is ignored, so sending every request is harmless (just wasteful).
  */
@@ -56,7 +59,7 @@ export async function handleCrawlApi(c: Context<AppEnv>) {
   const ua = typeof b?.user_agent === 'string' ? b.user_agent.slice(0, 1000) : '';
   const path = cleanPath(b?.path ?? b?.url);
   if (!ua || !path) return c.json({ error: 'user_agent and path (or url) are required' }, 400);
-  const bot = await recordCrawl(c.env.DB, site, ua, path, cleanCountry(b?.country));
+  const bot = await recordCrawl(c.env.DB, site, ua, path, cleanCountry(b?.country), cleanStatus(b?.status));
   return c.json(bot ? { ok: true, recorded: true, crawler: bot.name, kind: bot.kind } : { ok: true, recorded: false });
 }
 

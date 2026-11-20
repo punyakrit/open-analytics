@@ -27,6 +27,9 @@ Google Analytics, built for indie hackers, SaaS founders and makers who want to 
   how long they took to pay, and a map of their activity
 - **AI crawler tracking:** which AI assistants (ChatGPT, Claude, Perplexity…), search engines and training crawlers
   read your pages, and which pages
+- **Search & AI tab with a to-do list:** visitors and revenue from AI assistants and search engines side by side, the
+  pages AI reads but sends nobody to, crawlers that stopped coming (with the robots.txt lines to fix it), and the pages
+  that are working
 - **Real-time globe** (press `M`): everyone on your sites right now, on a 3D map
 - **One-click import from DataFast:** paste your DataFast API key and your history comes over in the background
 - **Many websites, one dashboard,** light and dark mode, and a public read-only view you can share per site
@@ -212,6 +215,33 @@ The dashboard groups them three ways:
 The full list is in `src/shared/bots.ts`; add a crawler there and it's recognised everywhere. Google and Bing sometimes
 run JavaScript, so a few of their visits are counted from the script alone. Crawler visits never count as visitors.
 
+### Search & AI tab
+
+Next to Overview on each site's dashboard (owner only). It puts visitors and revenue from AI assistants and search
+engines side by side, lists every page with how often AI read it and how many visitors it brought, and turns that
+into a short to-do list (rules in `src/worker/insights.ts`):
+
+- **Fix:** crawler tracking isn't set up; ChatGPT, Claude, Perplexity, Google or Bing hasn't come in 30 days while
+  other crawlers have, or robots.txt shuts them out (the robots.txt lines to allow them are included); crawlers hit
+  missing pages (404) or server errors
+- **Idea:** pages AI reads to answer people but sends no visitors to; pages AI stopped reading; sitemap pages Google
+  or AI search never read; no sitemap; AI visitors buying or completing goals far less than average
+- **Working:** pages AI started reading, the pages that bring visitors from AI and search, and goals AI visitors
+  complete more often than everyone else
+- **Note:** AI sending more than search, big changes from the period before, and training crawlers you could block
+  without disappearing from AI answers
+
+Next to the list: where the visitors come from, a goals table (share of all, AI and search visitors completing each
+goal), and a robots.txt and sitemap check. That check fetches `robots.txt` and the sitemaps from your site (a sample
+of up to 1,500 pages from big ones) and compares them with crawler visits; it runs at most every 12 hours, or when
+you press Check again (`src/worker/site-check.ts`).
+
+Comparisons with the period before only appear once tracking covers that period, and page changes only for a week
+or more. Requests from scanners probing for secrets under a crawler's name (`/.env`, `/api/config`…) are left out.
+
+To see 404s and server errors, the server snippet sends the response code too (`"status": 404`). The Express and
+Cloudflare snippets in Settings do; Next.js middleware runs before the page, so it can't.
+
 ## Import from DataFast
 
 Moving from DataFast? Open the site's **Settings → Import data**, paste the website's DataFast API key (`df_…`, in
@@ -352,7 +382,8 @@ Stripe (webhook), Dodo Payments (API key or webhook), and anything else through 
 
 Yes, two ways. Visits from ChatGPT, Claude, Perplexity, Gemini, Copilot, DeepSeek and Grok show up under the AI
 channel. And AI crawlers (GPTBot, ClaudeBot, ChatGPT-User, Perplexity and others) are counted separately, as AI
-answers, indexing or training, once you add the short server snippet from Settings → AI crawlers.
+answers, indexing or training, once you add the short server snippet from Settings → AI crawlers. The Search & AI tab
+puts both together: which pages AI reads, which ones it sends visitors to, and what to do about the rest.
 
 ### Can I move my data from DataFast?
 
